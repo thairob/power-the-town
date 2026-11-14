@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Power the Town</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one-screen phone app. Light or dark chrome around a dark workbench mat, so bulbs really glow. */
+:root{
+  --bg:#edf0f3; --surface:#ffffff; --ink:#16202a; --muted:#5a6774; --line:#cdd5dc;
+  --accent:#b9541a; --glow:#ffc531; --water:#1f7fd1; --good:#1c8a4b; --bad:#cf3a2d;
+  --board:#1b242d; --board-ink:#dfe6ec; --board-muted:#8d9aa7;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1418; --surface:#192027; --ink:#e7ecf1; --muted:#95a2af; --line:#313d48;
+    --accent:#e88d52; --water:#55aef2; --good:#4cc27c; --bad:#f0685c; --board:#151c23;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1418; --surface:#192027; --ink:#e7ecf1; --muted:#95a2af; --line:#313d48;
+  --accent:#e88d52; --water:#55aef2; --good:#4cc27c; --bad:#f0685c; --board:#151c23;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4;touch-action:manipulation;-webkit-user-select:none;user-select:none;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+button:focus-visible{outline:3px solid var(--water);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.01em}
+.screen{height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column}
+
+/* Home */
+#home{overflow-y:auto;padding:18px 16px 28px;gap:16px}
+.eyebrow{font-family:var(--display);font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#home h1{font-size:40px;line-height:1}
+.sub{color:var(--muted);margin:4px 0 0}
+.town{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.house{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;text-align:left;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;min-height:92px}
+.house svg{grid-row:1/4;width:58px;height:58px}
+.house .hn{font-family:var(--display);font-size:13px;letter-spacing:.1em;color:var(--muted)}
+.house .ht{font-family:var(--display);font-size:20px;line-height:1.05}
+.house .hc{font-size:13px;color:var(--muted)}
+.house.done .hc{color:var(--good);font-weight:600}
+.house:disabled{opacity:.5;cursor:default}
+.house:not(:disabled):active{transform:scale(.98)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.panel h2{font-size:20px;margin-bottom:6px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.btn{background:var(--ink);color:var(--bg);border-radius:12px;padding:12px 16px;font-weight:600;min-height:48px}
+.btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.45}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tag{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px}
+.tag.on{border-color:var(--good);color:var(--good);font-weight:600}
+.tiny{font-size:13px;color:var(--muted)}
+.link{color:var(--muted);text-decoration:underline;font-size:13px;padding:8px 0}
+
+/* Play */
+#play{padding:8px 12px 10px;gap:8px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.back{font-weight:600;padding:10px 12px 10px 2px;min-height:44px}
+.seg{display:flex;border:1.5px solid var(--line);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button{padding:8px 14px;border-radius:999px;font-weight:600;font-size:14px;min-height:38px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+#goal{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:12px;padding:8px 12px}
+#lvTitle{font-size:22px;line-height:1.1}
+#stepNo{font-family:var(--display);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+#goalText{margin:2px 0 0;font-size:15.5px}
+#goal.pop{animation:pop .5s}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.025);border-color:var(--good)}100%{transform:scale(1)}}
+#boardWrap{position:relative;flex:1;min-height:0;background:var(--board);border-radius:16px;overflow:hidden;
+  background-image:radial-gradient(rgba(255,255,255,.055) 1px,transparent 1.2px);background-size:18px 18px}
+#board{width:100%;height:100%;display:block;touch-action:none}
+#boardWrap.shake{animation:shake .4s}
+@keyframes shake{20%{transform:translate(-5px,2px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-3px,-2px)}80%{transform:translate(3px,2px)}}
+#toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(8,12,16,.88);color:#fff;padding:7px 14px;border-radius:999px;font-weight:600;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#toast.on{opacity:1}
+#sheet{position:absolute;left:8px;right:8px;bottom:8px;background:var(--surface);color:var(--ink);border-radius:14px;padding:12px 44px 12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+#sheet h3{font-size:17px;color:var(--accent)}
+#sheet p{margin:3px 0 0;font-size:15.5px}
+#sheetX{position:absolute;top:2px;right:2px;width:44px;height:44px;font-size:22px;color:var(--muted)}
+#sheetMore{margin-top:8px;padding:8px 14px;min-height:40px;font-size:14px}
+#chips{display:flex;gap:6px;flex-wrap:wrap;min-height:0}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 10px;font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:baseline}
+.chip b{font-family:var(--display);font-size:19px;color:var(--ink);font-variant-numeric:tabular-nums}
+.chip.bad b{color:var(--bad)}
+#cells{display:flex;align-items:center;justify-content:center;gap:14px}
+#cells button{width:52px;height:48px;border-radius:12px;background:var(--surface);border:1.5px solid var(--line);font-size:26px;font-weight:600}
+#cells span{font-family:var(--display);font-size:20px;min-width:150px;text-align:center}
+.actions{display:grid;grid-template-columns:1.7fr 1fr 1fr;gap:8px}
+.actions button{min-height:50px;border-radius:12px;font-weight:600;font-size:15px;background:var(--surface);border:1.5px solid var(--line);line-height:1.1;padding:4px 6px}
+.actions #why{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Board drawing */
+.wireO{fill:none;stroke:#5a2c0c;stroke-width:8;stroke-linecap:round}
+.wire{fill:none;stroke:#d9823f;stroke-width:5;stroke-linecap:round}
+.wire.hot{animation:hot .6s forwards}
+@keyframes hot{to{stroke:#fff1d6;stroke-width:6.5}}
+.pipe{fill:none;stroke:#77838f;stroke-width:15;stroke-linecap:round}
+.waterIn{fill:none;stroke-width:9;stroke-linecap:round}
+.hit{fill:none;stroke:transparent;stroke-width:28;stroke-linecap:round;cursor:pointer}
+.ghost{fill:none;stroke:#7fe0a2;stroke-width:3;stroke-dasharray:7 7;stroke-linecap:round;animation:dash 1s linear infinite;pointer-events:none}
+.ghost.cut{stroke:#ff7b6e}
+@keyframes dash{to{stroke-dashoffset:-14}}
+.lead{fill:none;stroke:#8f9ba7;stroke-width:3;stroke-linecap:round}
+.term{fill:#d9dfe5;stroke:#57626d;stroke-width:2}
+.term.sel{fill:var(--glow);stroke:#fff;animation:pulse .8s ease-in-out infinite alternate}
+@keyframes pulse{to{stroke-width:6}}
+.thit{fill:transparent;cursor:pointer}
+.lbl{font-family:var(--display);font-size:13px;fill:var(--board-muted);text-anchor:middle;letter-spacing:.06em;pointer-events:none}
+.lbl.big{font-size:17px;fill:#fff;font-weight:700}
+.lbl.warn{fill:#ff9d93}
+.sym{stroke:#dfe6ec;stroke-width:1.7;fill:none;stroke-linecap:round;pointer-events:none}
+.spark{fill:#ffe9a8;animation:spark .6s ease-out forwards}
+@keyframes spark{to{transform:translate(var(--dx),var(--dy));opacity:0}}
+.char{fill:none;stroke:#0b0e11;stroke-width:6;stroke-dasharray:3 9;stroke-linecap:round;animation:fade 1.6s forwards}
+@keyframes fade{to{opacity:0}}
+.rubber{stroke:#ffe08a;stroke-width:4;stroke-dasharray:6 6;stroke-linecap:round;pointer-events:none}
+.tap{cursor:pointer}
+
+/* Quiz */
+#quiz{padding:8px 16px 20px;gap:14px;overflow-y:auto}
+#qText{font-size:26px;line-height:1.15}
+#qOpts{display:flex;flex-direction:column;gap:10px}
+.opt{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:14px;text-align:left;min-height:56px;font-size:16px}
+.opt.right{border-color:var(--good);background:color-mix(in srgb,var(--good) 14%,var(--surface))}
+.opt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--surface))}
+#qWhy{font-size:15.5px}
+
+/* Modal */
+#modal{position:fixed;inset:0;background:rgba(5,8,11,.6);display:flex;align-items:flex-end;justify-content:center;padding:16px;z-index:10}
+#modalBox{background:var(--surface);border-radius:18px;padding:20px;max-width:480px;width:100%;display:flex;flex-direction:column;gap:12px;animation:rise .3s}
+@keyframes rise{from{transform:translateY(30px);opacity:0}}
+#modalBox h2{font-size:28px;line-height:1.05}
+#modalBox p{margin:0}
+#modalBtns{display:flex;flex-direction:column;gap:8px}
+@media (prefers-reduced-motion: reduce){
+  #boardWrap.shake,#goal.pop,#modalBox,.term.sel{animation:none}
+}
+</style>
+</head>
+<body>
+
+<section id="home" class="screen">
+  <div>
+    <div class="eyebrow">World 1 of 5</div>
+    <h1>Power the Town</h1>
+    <p class="sub">Wire each house. Every level teaches one idea.</p>
+  </div>
+  <div class="town" id="town"></div>
+  <div class="panel">
+    <div class="row">
+      <div><h2>Review</h2><div class="tiny" id="quizInfo"></div></div>
+      <button class="btn" id="quizGo">Quiz me</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>What you know so far</h2>
+    <div class="tags" id="concepts"></div>
+    <p class="tiny" id="nextUp" style="margin:10px 0 0"></p>
+  </div>
+  <p class="tiny" style="margin:0">Coming later: Garage Troubleshooter, Breaker Box, Guitar Rig Lab. Progress is saved in this browser on this device.</p>
+  <button class="link" id="wipe" style="align-self:flex-start">Erase my progress</button>
+</section>
+
+<section id="play" class="screen" hidden>
+  <div class="bar">
+    <button class="back" id="back">&lsaquo; Town</button>
+    <div class="seg" role="group" aria-label="View">
+      <button id="vWire" aria-pressed="true">Wires</button>
+      <button id="vPipe" aria-pressed="false">Pipes</button>
+    </div>
+  </div>
+  <div id="goal">
+    <h2 id="lvTitle"></h2>
+    <div id="stepNo"></div>
+    <p id="goalText"></p>
+  </div>
+  <div id="boardWrap">
+    <svg id="board" viewBox="0 0 360 440" preserveAspectRatio="xMidYMid meet" aria-label="Circuit board">
+      <defs>
+        <radialGradient id="glow"><stop offset="0" stop-color="#fff3c0"/><stop offset=".35" stop-color="#ffd257" stop-opacity=".75"/><stop offset="1" stop-color="#ffb000" stop-opacity="0"/></radialGradient>
+        <linearGradient id="metal" x1="0" x2="1"><stop offset="0" stop-color="#6b7580"/><stop offset=".5" stop-color="#e3e8ed"/><stop offset="1" stop-color="#77818c"/></linearGradient>
+      </defs>
+      <g id="gWires"></g><g id="gParts"></g><g id="gDots" pointer-events="none"></g><g id="gTerms"></g><g id="gFx" pointer-events="none"></g>
+      <line id="rubber" class="rubber" visibility="hidden"/>
+    </svg>
+    <div id="toast" role="status"></div>
+    <div id="sheet" hidden>
+      <button id="sheetX" aria-label="Close">&times;</button>
+      <h3 id="sheetT"></h3><p id="sheetP"></p>
+      <button class="btn alt" id="sheetMore" hidden>More help</button>
+    </div>
+  </div>
+  <div id="chips"></div>
+  <div id="cells" hidden>
+    <button id="cellMinus" aria-label="Remove a cell">&minus;</button>
+    <span id="cellCount"></span>
+    <button id="cellPlus" aria-label="Add a cell">+</button>
+  </div>
+  <div class="actions">
+    <button id="why">Why did that happen?</button>
+    <button id="hint">Hint</button>
+    <button id="reset">Start over</button>
+  </div>
+</section>
+
+<section id="quiz" class="screen" hidden>
+  <div class="bar"><button class="back" id="qBack">&lsaquo; Town</button><span class="eyebrow" id="qCount"></span></div>
+  <h2 id="qText"></h2>
+  <div id="qOpts"></div>
+  <p id="qWhy"></p>
+  <button class="btn" id="qNext" hidden>Next</button>
+</section>
+
+<div id="modal" hidden><div id="modalBox"><h2 id="modalT"></h2><p id="modalP"></p><p class="tiny" id="modalS"></p><div id="modalBtns"></div></div></div>
+
+<script id="engine">
+/* ---------- Circuit engine: real nodal analysis, no faked results ---------- */
+const E = (() => {
+  const WIRE_R = 0.02, WIRE_MAX = 8, GMIN = 1e-7;
+  function partR(p){
+    switch(p.type){
+      case 'bulb': return p.burned ? Infinity : p.R;
+      case 'switch': return p.closed ? 0.005 : Infinity;
+      case 'fuse': return p.blown ? Infinity : 0.05;
+      case 'resistor': return p.R;
+    }
+    return Infinity;
+  }
+  function gauss(A, b){
+    const n = b.length;
+    for(let i=0;i<n;i++){
+      let m=i; for(let r=i+1;r<n;r++) if(Math.abs(A[r][i])>Math.abs(A[m][i])) m=r;
+      [A[i],A[m]]=[A[m],A[i]]; [b[i],b[m]]=[b[m],b[i]];
+      const d=A[i][i]; if(Math.abs(d)<1e-14) continue;
+      for(let r=i+1;r<n;r++){ const f=A[r][i]/d; if(!f) continue; for(let k=i;k<n;k++) A[r][k]-=f*A[i][k]; b[r]-=f*b[i]; }
+    }
+    const x=new Array(n).fill(0);
+    for(let i=n-1;i>=0;i--){ let s=b[i]; for(let k=i+1;k<n;k++) s-=A[i][k]*x[k]; x[i]=Math.abs(A[i][i])<1e-14?0:s/A[i][i]; }
+    return x;
+  }
+  /* Every terminal is a node. Each part or wire is a conductance between two nodes.
+     A battery is its voltage in series with its internal resistance. */
+  function solve(c){
+    const idx=new Map(); const node=k=>{ if(!idx.has(k)) idx.set(k,idx.size); return idx.get(k); };
+    const els=[];
+    for(const p of c.parts){
+      if(p.hidden) continue;
+      const a=node(p.id+'.a'), b=node(p.id+'.b');
+      if(p.type==='battery') els.push({ref:p,a,b,g:1/(p.cells*p.rCell),v:p.dead?0:p.cells*p.vCell});
+      else { const R=partR(p); els.push({ref:p,a,b,g:R===Infinity?0:1/R,v:0}); }
+    }
+    for(const w of c.wires) els.push({ref:w,a:node(w.a),b:node(w.b),g:1/WIRE_R,v:0});
+    const n=idx.size, G=[], I=new Array(n).fill(0);
+    for(let i=0;i<n;i++){ G.push(new Array(n).fill(0)); G[i][i]=GMIN; }
+    for(const e of els){
+      if(!e.g) continue;
+      G[e.a][e.a]+=e.g; G[e.b][e.b]+=e.g; G[e.a][e.b]-=e.g; G[e.b][e.a]-=e.g;
+      if(e.v){ I[e.b]+=e.v*e.g; I[e.a]-=e.v*e.g; }
+    }
+    const V=gauss(G,I);
+    let iBat=0, vmin=Infinity, vmax=-Infinity;
+    for(const v of V){ if(v<vmin) vmin=v; if(v>vmax) vmax=v; }
+    for(const e of els){
+      const r=e.ref; r.va=V[e.a]; r.vb=V[e.b];
+      if(r.type==='battery'){ r.i=(e.v-(V[e.b]-V[e.a]))*e.g; iBat+=r.i; }
+      else {
+        r.i=(V[e.a]-V[e.b])*e.g;
+        if(r.type==='bulb'){ r.p=r.i*r.i*r.R; r.ratio=r.p/r.rated; }
+      }
+    }
+    return {iBat, vmin, vmax};
+  }
+  /* Heat builds with current squared. Fuses go first, then bulbs, then wires. */
+  function tick(c, dt, o){
+    const ev=[]; let hot=null;
+    for(const w of c.wires){
+      const a=Math.abs(w.i||0);
+      if(a>WIRE_MAX){ w.heat=(w.heat||0)+dt*(a/WIRE_MAX)**2; if(w.heat>=6 && (!hot||a>Math.abs(hot.i))) hot=w; }
+      else w.heat=Math.max(0,(w.heat||0)-dt*3);
+    }
+    for(const p of c.parts){
+      if(p.hidden) continue;
+      const a=Math.abs(p.i||0);
+      if(p.type==='fuse' && !p.blown){
+        if(a>p.rating){ p.heat=(p.heat||0)+dt*(a/p.rating)**2; if(p.heat>=1){ p.blown=true; p.heat=0; ev.push({type:'fuseBlown',ref:p,amps:a}); } }
+        else p.heat=Math.max(0,(p.heat||0)-dt);
+      }
+      if(p.type==='bulb' && !p.burned){
+        if(p.ratio>2.5){ p.heat=(p.heat||0)+dt*p.ratio; if(p.heat>=0.6){ p.burned=true; p.heat=0; ev.push({type:'bulbBurned',ref:p,volts:Math.abs(p.va-p.vb),amps:a}); } }
+        else p.heat=0;
+      }
+      if(p.type==='battery' && o && o.drain && !p.dead){
+        p.charge-=Math.max(0,p.i)*dt*o.accel/3600;
+        if(p.charge<=0){ p.charge=0; p.dead=true; ev.push({type:'batteryDead',ref:p}); }
+      }
+    }
+    if(hot && !ev.some(e=>e.type==='fuseBlown')){ c.wires.splice(c.wires.indexOf(hot),1); ev.push({type:'wireMelted',ref:hot,amps:Math.abs(hot.i)}); }
+    return ev;
+  }
+  function closedCopy(c){
+    const k=JSON.parse(JSON.stringify(c));
+    k.parts.forEach(p=>{ if(p.type==='switch') p.closed=true; });
+    return {c:k, sol:solve(k)};
+  }
+  /* Goal tests are plain data so levels can be added without touching this file's logic. */
+  function check(c, t, events){
+    const bulbs=c.parts.filter(p=>p.type==='bulb'&&!p.hidden);
+    switch(t[0]){
+      case 'allBulbs': return bulbs.length>0 && bulbs.every(b=>b.ratio>=t[1]&&b.ratio<=t[2]);
+      case 'bulbs': return bulbs.filter(b=>b.ratio>=t[1]&&b.ratio<=t[2]).length===t[3];
+      case 'switchCarries': return c.parts.some(p=>p.type==='switch'&&Math.abs(p.i)>0.01);
+      case 'fuseCarries': return c.parts.some(p=>p.type==='fuse'&&!p.hidden&&Math.abs(p.i)>0.01);
+      case 'switchBreaks': {
+        if(!c.parts.some(p=>p.type==='switch'&&!p.closed) || bulbs.some(b=>b.ratio>0.01)) return false;
+        return closedCopy(c).c.parts.some(p=>p.type==='bulb'&&p.ratio>=0.5);
+      }
+      case 'event': return !!events[t[1]];
+    }
+    return false;
+  }
+  return {solve, tick, check, closedCopy, WIRE_MAX};
+})();
+</script>
+
+<script id="data">
+/* ---------- Content: levels and quiz cards are data. Add more here. ---------- */
+const BAT = {type:'battery', cells:4, vCell:1.5, rCell:0.05, charge:2.5, cap:2.5};
+const BULB = {type:'bulb', R:12, rated:3};
+const LEVELS = [
+  { id:'loop', title:'Complete the Loop', concept:'Closed loop', symOp:.3, show:[],
+    learned:'Current only flows around a complete loop: out of the battery, through the bulb, and back in.',
+    parts:[{id:'bat',x:180,y:366,...BAT},{id:'b1',x:180,y:140,...BULB}],
+    steps:[{ goal:'Light the bulb. Tap a metal dot, then tap another dot to run a wire between them. Tap a wire to remove it.',
+      test:[['allBulbs',.8,1.4]],
+      hints:['The bulb has two metal dots. Both of them need a wire.','Run one wire from the battery’s + to the bulb. Run a second wire from the bulb’s other dot back to the battery’s −.'],
+      show:'Follow the dashed green lines.', ghost:[['bat.b','b1.b'],['b1.a','bat.a']] }] },
+
+  { id:'switch', title:'The Switch', concept:'Open and closed circuits', symOp:.45, show:[],
+    learned:'A switch is a gap you control. Open means a gap and no flow. Closed means a complete loop.',
+    parts:[{id:'bat',x:180,y:366,...BAT},{id:'b1',x:180,y:140,...BULB},{id:'sw',type:'switch',x:64,y:268,closed:false}],
+    steps:[
+      { goal:'Build one loop that runs through the battery, the switch and the bulb. Then tap the switch to close it.',
+        test:[['allBulbs',.8,1.4],['switchCarries']],
+        hints:['The current should have to pass through the switch to get around the loop.','Battery + to bulb. Bulb to the top of the switch. Bottom of the switch back to battery −. Then tap the switch.'],
+        show:'Follow the dashed lines, then tap the switch.', ghost:[['bat.b','b1.b'],['b1.a','sw.a'],['sw.b','bat.a']] },
+      { goal:'Now tap the switch again to open it.',
+        test:[['switchBreaks']],
+        hints:['Tap the switch handle.','Leave the wires alone. Just tap the switch so its arm lifts off the contact.'],
+        show:'Tap the switch so the arm swings open.', ghost:[] } ] },
+
+  { id:'series', title:'Two Bulbs in a Row', concept:'Series wiring', symOp:.6, show:['pct'],
+    learned:'In series, each bulb adds resistance to the loop. More resistance means less current, so both bulbs dim.',
+    parts:[{id:'bat',x:180,y:366,...BAT},{id:'b1',x:104,y:140,...BULB},{id:'b2',x:256,y:140,...BULB}],
+    steps:[{ goal:'Light both bulbs with ONE loop. The current must go through one bulb, then the other.',
+      test:[['allBulbs',.15,.4]],
+      hints:['Think of a single chain: battery, bulb, bulb, back to battery.','Join the two bulbs to each other with one wire. Then connect each bulb’s free dot to one side of the battery.'],
+      show:'Follow the dashed lines.', ghost:[['bat.b','b2.b'],['b2.a','b1.b'],['b1.a','bat.a']] }] },
+
+  { id:'parallel', title:'Side by Side', concept:'Parallel wiring', symOp:.75, show:['pct','amps','life'], drain:true,
+    learned:'In parallel, each bulb gets the battery’s full push, so both stay bright. The battery supplies double the current and drains twice as fast.',
+    parts:[{id:'bat',x:180,y:372,...BAT},{id:'b1',x:180,y:100,...BULB},{id:'b2',x:180,y:240,...BULB}],
+    steps:[
+      { goal:'Light just ONE bulb. Look at how long the battery will last.',
+        test:[['bulbs',.8,1.4,1],['bulbs',0,.01,1]],
+        hints:['Wire only one bulb for now, like level 1.','Connect the lower bulb straight to the battery: + to one dot, − to the other.'],
+        show:'Follow the dashed lines.', ghost:[['bat.b','b2.b'],['b2.a','bat.a']] },
+      { goal:'Now get BOTH bulbs to full brightness. Give the second bulb its own path to the battery.',
+        test:[['allBulbs',.8,1.4]],
+        hints:['Don’t chain them. Each bulb needs to touch both sides of the battery.','Connect the top bulb’s left dot to the lower bulb’s left dot, and right dot to right dot, like a ladder.'],
+        show:'Follow the dashed lines. It should look like a ladder.', ghost:[['bat.b','b2.b'],['b2.a','bat.a'],['b2.b','b1.b'],['b2.a','b1.a']] } ] },
+
+  { id:'short', title:'Short Circuit', concept:'Short circuits and fuses', symOp:.9, show:['amps'],
+    learned:'A short circuit is a path with almost no resistance, so the current surges. A fuse is a weak link that breaks first and saves the wires.',
+    parts:[{id:'bat',x:180,y:366,...BAT},{id:'b1',x:180,y:140,...BULB},{id:'fz',type:'fuse',x:300,y:250,rating:3,fromStep:1}],
+    steps:[
+      { goal:'Light the bulb. Then add one extra wire that lets the current skip the bulb, and watch.',
+        test:[['event','wireMelted']],
+        hints:['Current takes the easiest path. Give it an easier one than the bulb.','After the bulb is lit, run a wire straight from one bulb dot to the other bulb dot.'],
+        show:'Follow the dashed lines. The last wire goes across the bulb.', ghost:[['bat.b','b1.b'],['b1.a','bat.a'],['b1.a','b1.b']] },
+      { goal:'That was a short circuit. Now build the loop again with the fuse in it, and make the same shortcut.',
+        test:[['event','fuseBlown']],
+        hints:['The fuse only helps if the surge has to pass through it.','Battery + to the bottom of the fuse. Top of the fuse to the bulb. Bulb back to battery −. Then wire across the bulb again.'],
+        show:'Follow the dashed lines. Add the wire across the bulb last.', ghost:[['bat.b','fz.b'],['fz.a','b1.b'],['b1.a','bat.a'],['b1.a','b1.b']] },
+      { goal:'The fuse took the hit. Tap it to fit a new one, remove the shortcut wire, and light the bulb.',
+        test:[['allBulbs',.8,1.4],['fuseCarries']],
+        hints:['Take the shortcut away first, or the new fuse will blow too.','Tap the wire that runs across the bulb to remove it. Then tap the fuse.'],
+        show:'Remove the red dashed wire, then tap the fuse.', ghost:[['bat.b','fz.b'],['fz.a','b1.b'],['b1.a','bat.a']], cut:[['b1.a','b1.b']] } ] },
+
+  { id:'volts', title:'More Push', concept:'Voltage', symOp:1, show:['pct','volts','amps'], cells:[1,8],
+    learned:'Each cell adds 1.5 volts of push. More volts drive more current through the bulb. Too many and the filament burns out.',
+    parts:[{id:'bat',x:180,y:366,...BAT,cells:1},{id:'b1',x:180,y:140,...BULB}],
+    steps:[
+      { goal:'This battery pack has 1 cell. Wire up the bulb, then add cells until it shines at full, normal brightness.',
+        test:[['allBulbs',.8,1.3]],
+        hints:['Use the + button under the board to add cells.','Wire the bulb like level 1. Then add cells one at a time until the bulb reads close to 100%.'],
+        show:'Follow the dashed lines and set the pack to 4 cells.', ghost:[['bat.b','b1.b'],['b1.a','bat.a']] },
+      { goal:'Keep adding cells. Find out how much push this bulb can take.',
+        test:[['event','bulbBurned']],
+        hints:['Keep pressing +.','Go to 7 cells or more.'],
+        show:'Set the pack to 7 cells.', ghost:[] },
+      { goal:'Tap the bulb to fit a new one. Then bring it back to a safe, full brightness.',
+        test:[['allBulbs',.8,1.3]],
+        hints:['Lower the push before you fit the new bulb.','Set the pack to 4 cells, then tap the burned bulb.'],
+        show:'Set the pack to 4 cells and tap the bulb.', ghost:[['bat.b','b1.b'],['b1.a','bat.a']] } ] },
+];
+const NEXT_AFTER = 'Next up in this world: resistors, then Ohm’s law with real numbers.';
+const CARDS = [
+  {id:'loop1',level:'loop',q:'A bulb is wired to the battery’s + side only. What happens?',a:['Nothing. There is no path back to the battery','It glows dimly','It lights, but drains the battery fast'],why:'Current needs a complete path out of the battery and back in.'},
+  {id:'loop2',level:'loop',q:'What does a circuit need before any current will flow?',a:['An unbroken loop from + back to −','A switch','At least two batteries'],why:'No complete loop, no flow.'},
+  {id:'sw1',level:'switch',q:'What does opening a switch actually do?',a:['Makes a gap in the loop so current can’t flow','Uses up the current','Lowers the battery’s push'],why:'A switch is a gap you control.'},
+  {id:'sw2',level:'switch',q:'“Closed circuit” means…',a:['The loop is complete and current can flow','The circuit is switched off','The battery is sealed'],why:'Closed = complete loop. Open = gap.'},
+  {id:'ser1',level:'series',q:'Two bulbs in one loop glow dimmer than one bulb alone. Why?',a:['Their resistance adds up, so less current flows','The first bulb uses up the current','The battery gets weaker'],why:'Series resistances add. More resistance, less current.'},
+  {id:'ser2',level:'series',q:'In a series loop, which bulb gets more current?',a:['Neither. The same current flows through both','The one nearer the + side','The one nearer the − side'],why:'There is only one path, so the flow is the same everywhere in it.'},
+  {id:'ser3',level:'series',q:'One bulb in a series loop burns out. The other bulb…',a:['Goes out too, because the loop is broken','Gets brighter','Stays the same'],why:'A broken filament is a gap in the only loop.'},
+  {id:'par1',level:'parallel',q:'Two bulbs in parallel are both fully bright. What is the cost?',a:['The battery supplies twice the current and drains faster','Nothing. It is free','The wires get twice the voltage'],why:'Each branch draws its own current, and the battery supplies the total.'},
+  {id:'par2',level:'parallel',q:'In parallel, one bulb burns out. The other bulb…',a:['Stays lit. It has its own path to the battery','Goes out too','Gets dimmer'],why:'Each branch is its own loop.'},
+  {id:'sh1',level:'short',q:'What is a short circuit?',a:['A path with almost no resistance, so current surges','A wire that is too short to reach','A loop with a gap in it'],why:'With almost nothing resisting it, the current gets huge.'},
+  {id:'sh2',level:'short',q:'Why does a bulb go dark when a wire is connected straight across it?',a:['Current takes the easy path through the wire instead','The wire blocks the bulb','The bulb has burned out'],why:'Nearly all the current takes the path with almost no resistance.'},
+  {id:'sh3',level:'short',q:'How does a fuse protect a circuit?',a:['It is a weak link that breaks the loop when current gets too high','It soaks up extra voltage','It makes the battery weaker'],why:'The fuse melts first, so the wires don’t.'},
+  {id:'v1',level:'volts',q:'What does stacking more battery cells in a row do?',a:['Adds up their voltage, giving more push','Keeps the push the same but lasts longer','Lowers the resistance'],why:'Cells in a row add their volts together.'},
+  {id:'v2',level:'volts',q:'Why did the bulb burn out with too many cells?',a:['More voltage drove more current through the filament than it could take','The battery ran out','The wires were too long'],why:'More push, more current, more heat in the filament.'},
+  {id:'v3',level:'volts',q:'Same bulb, half the voltage. The current through it…',a:['Also halves','Stays the same','Doubles'],why:'For the same resistance, current follows the push.'},
+];
+</script>
+
+<script id="ui">
+(() => {
+const $ = s => document.querySelector(s);
+const KEY = 'power-the-town-v1', DAY = 864e5, IV = [0,1,3,7,16,35];
+let S = (() => { try{ const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.v===1) return s; }catch(e){} return {v:1,done:{},cards:{},water:false}; })();
+const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} };
+let L = null;            // the level being played
+let quiz = null;
+const show = id => { for(const s of ['home','play','quiz']) $('#'+s).hidden = s!==id; };
+
+/* ---------- helpers ---------- */
+const hex = h => [1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mix = (a,b,t) => { const A=hex(a),B=hex(b); t=Math.max(0,Math.min(1,t)); return 'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')'; };
+const fmtA = a => (a>=10 ? a.toFixed(0) : a>=1 ? a.toFixed(1) : a.toFixed(2)) + ' A';
+const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+function modal(t, p, s, btns){
+  $('#modalT').textContent=t; $('#modalP').textContent=p; $('#modalS').textContent=s||'';
+  const box=$('#modalBtns'); box.innerHTML='';
+  btns.forEach(([label,fn,alt])=>{ const b=document.createElement('button'); b.className='btn'+(alt?' alt':''); b.textContent=label; b.onclick=()=>{ $('#modal').hidden=true; fn&&fn(); }; box.appendChild(b); });
+  $('#modal').hidden=false;
+}
+
+/* ---------- home ---------- */
+function houseSvg(done, i){
+  const roof=['#a5482a','#3f6b8c','#7a5a3a','#5b7a4a','#8a3f55','#4a5a7a'][i%6], win=done?'#ffc531':'#2b343d';
+  return `<svg viewBox="0 0 60 60" aria-hidden="true">${done?'<circle cx="30" cy="36" r="29" fill="#ffc531" opacity=".16"/>':''}<rect x="12" y="26" width="36" height="28" rx="2" fill="#e9e3d8" stroke="#8b8478"/><path d="M6 28 L30 8 L54 28 Z" fill="${roof}"/><rect x="17" y="32" width="9" height="9" fill="${win}"/><rect x="34" y="32" width="9" height="9" fill="${win}"/><rect x="26" y="42" width="8" height="12" fill="#6b4a32"/></svg>`;
+}
+const dueCards = () => { const now=Date.now(); return CARDS.filter(q=>S.cards[q.id]&&S.cards[q.id].due<=now); };
+function renderHome(){
+  $('#town').innerHTML = LEVELS.map((d,i)=>{
+    const done=!!S.done[d.id], open=i===0||!!S.done[LEVELS[i-1].id];
+    return `<button class="house ${done?'done':''}" ${open?'':'disabled'} data-level="${i}">${houseSvg(done,i)}<span class="hn">LEVEL ${i+1}</span><span class="ht">${d.title}</span><span class="hc">${done?'Powered':open?'Ready to wire':'Locked'}</span></button>`;
+  }).join('');
+  const due=dueCards().length, total=Object.keys(S.cards).length;
+  let info='Finish a level to unlock quiz cards.';
+  if(total){
+    if(due) info=`${due} card${due>1?'s':''} ready.`;
+    else { const nxt=Math.min(...Object.values(S.cards).map(c=>c.due)); const d=Math.max(1,Math.ceil((nxt-Date.now())/DAY)); info=`All caught up. Next cards in ${d} day${d>1?'s':''}.`; }
+  }
+  $('#quizInfo').textContent=info; $('#quizGo').disabled=!due;
+  $('#concepts').innerHTML = LEVELS.map(d=>`<span class="tag ${S.done[d.id]?'on':''}">${d.concept}</span>`).join('');
+  const nx=LEVELS.find(d=>!S.done[d.id]);
+  $('#nextUp').textContent = nx ? `Next up: ${nx.concept.toLowerCase()} (level ${LEVELS.indexOf(nx)+1}).` : NEXT_AFTER;
+  show('home');
+}
+$('#town').addEventListener('click', e=>{ const b=e.target.closest('[data-level]'); if(b&&!b.disabled) startLevel(+b.dataset.level); });
+$('#wipe').onclick = () => modal('Erase everything?','This clears finished levels and your quiz schedule on this device.','',[['Erase',()=>{ S={v:1,done:{},cards:{},water:false}; save(); renderHome(); }],['Keep my progress',null,true]]);
+
+/* ---------- level setup ---------- */
+function termPos(p){
+  if(p.type==='battery') return {a:{x:p.x-70,y:p.y}, b:{x:p.x+70,y:p.y}};
+  if(p.type==='bulb') return {a:{x:p.x-40,y:p.y+28}, b:{x:p.x+40,y:p.y+28}};
+  return {a:{x:p.x,y:p.y-40}, b:{x:p.x,y:p.y+40}};
+}
+function startLevel(i){
+  const def=LEVELS[i];
+  L = { i, def, c:{parts:JSON.parse(JSON.stringify(def.parts)), wires:[]}, step:0, events:{}, hold:0, tier:0, ghost:false, lastEvent:null, sel:null, won:false, ang:{}, wid:0, tp:{} };
+  for(const p of L.c.parts){ p.hidden = (p.fromStep||0) > 0; const t=termPos(p); L.tp[p.id+'.a']=t.a; L.tp[p.id+'.b']=t.b; }
+  $('#gFx').innerHTML=''; hideSheet();
+  $('#cells').hidden = !def.cells;
+  setView(S.water, true);
+  updateGoal(); resolve(); draw(); show('play');
+}
+function updateGoal(){
+  const d=L.def, st=d.steps[L.step];
+  $('#lvTitle').textContent = `${L.i+1}. ${d.title}`;
+  $('#stepNo').textContent = d.steps.length>1 ? `Step ${L.step+1} of ${d.steps.length}` : '';
+  $('#goalText').textContent = st.goal;
+}
+function resolve(){ L.sol = E.solve(L.c); chips(); }
+function changed(){ L.lastEvent=null; resolve(); draw(); }
+
+/* ---------- drawing ---------- */
+function geom(w){
+  const a=L.tp[w.a], b=L.tp[w.b], mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
+  let nx=-dy/len, ny=dx/len, bulge;
+  if(w.a.split('.')[0]===w.b.split('.')[0]){ if(ny<0){nx=-nx;ny=-ny;} bulge=30; }      // same part: sag below it
+  else { if((mx+nx-180)**2+(my+ny-270)**2 < (mx-nx-180)**2+(my-ny-270)**2){nx=-nx;ny=-ny;} bulge=Math.min(20,Math.max(8,len*.08)); }
+  const c={x:mx+nx*bulge*2, y:my+ny*bulge*2};
+  return {a,b,c,len:len*1.03,d:`M${a.x} ${a.y} Q${c.x} ${c.y} ${b.x} ${b.y}`};
+}
+const bez = (g,t) => { const u=1-t; return {x:u*u*g.a.x+2*u*t*g.c.x+t*t*g.b.x, y:u*u*g.a.y+2*u*t*g.c.y+t*t*g.b.y}; };
+const pressCol = v => { const r=L.sol.vmax-L.sol.vmin; return mix('#9bd6ff','#0d56ad', r<.01 ? .35 : (v-L.sol.vmin)/r); };
+const pipeSeg = (d,v) => `<path d="${d}" class="pipe"/><path d="${d}" class="waterIn" stroke="${pressCol(v)}"/>`;
+function sym(type, x, y, op, p){
+  let s='';
+  if(type==='battery') s='<path d="M-16 0H-3M3 0H16M3 -10V10"/><path d="M-3 -5V5" stroke-width="3.4"/>';
+  if(type==='bulb') s='<circle r="8"/><path d="M-16 0H-8M8 0H16M-5.6 -5.6L5.6 5.6M5.6 -5.6L-5.6 5.6"/>';
+  if(type==='switch') s=`<path d="M0 -16V-9M0 9V16M0 9L${p.closed?'0 -9':'8 -6'}"/><circle cy="-9" r="1.6"/><circle cy="9" r="1.6"/>`;
+  if(type==='fuse') s='<rect x="-4.5" y="-9" width="9" height="18"/><path d="M0 -16V16"/>';
+  return `<g class="sym" transform="translate(${x} ${y})" opacity="${op}">${s}</g>`;
+}
+function drawBattery(p, water){
+  const {x,y}=p, n=p.cells, V=+(n*p.vCell).toFixed(1); let s='';
+  if(water){
+    s+=pipeSeg(`M${x-70} ${y}H${x}`,p.va)+pipeSeg(`M${x} ${y}H${x+70}`,p.vb);
+    s+=`<circle cx="${x}" cy="${y}" r="27" fill="#35414c" stroke="#9aa6b2" stroke-width="2"/>`;
+    s+=`<g data-spin="${p.id}" data-cx="${x}" data-cy="${y}" data-rate="${p.i*300}"><path d="M0 -20 Q9 -9 0 0 Q-9 9 0 20 M-20 0 Q-9 -9 0 0 Q9 9 20 0" fill="none" stroke="#e6edf3" stroke-width="4" stroke-linecap="round"/></g>`;
+    s+=`<text class="lbl" x="${x}" y="${y+46}">${p.dead?'PUMP STOPPED · TAP':'PUMP · '+V+' V OF PRESSURE'}</text>`;
+  } else {
+    s+=`<path class="lead" d="M${x-70} ${y}H${x-58}M${x+58} ${y}H${x+70}"/>`;
+    s+=`<rect x="${x-58}" y="${y-24}" width="116" height="48" rx="7" fill="#0f1317" stroke="#44505c" stroke-width="1.5"/>`;
+    const w=(108-(n-1)*2)/n;
+    for(let k=0;k<n;k++){ const cx=x-54+k*(w+2); s+=`<rect x="${cx}" y="${y-19}" width="${w}" height="38" rx="3" fill="#262c33"/><rect x="${cx+w*.66}" y="${y-19}" width="${w*.34}" height="38" rx="3" fill="#c8742e"/>`; }
+    s+=`<text class="lbl big" x="${x}" y="${y+6}" stroke="#0f1317" stroke-width="4" paint-order="stroke">${V} V</text>`;
+    s+=`<text class="lbl ${p.dead?'warn':''}" x="${x}" y="${y+(L.def.drain?52:44)}">${p.dead?'FLAT · TAP FOR A NEW ONE':n+(n>1?' CELLS':' CELL')}</text>`;
+    if(p.dead) s+=`<rect x="${x-58}" y="${y-24}" width="116" height="48" rx="7" fill="#0f1317" opacity=".6"/>`;
+  }
+  s+=`<text class="lbl big" x="${x-70}" y="${y-16}">−</text><text class="lbl big" x="${x+70}" y="${y-16}">+</text>`;
+  if(L.def.drain) s+=`<rect x="${x-50}" y="${y+29}" width="100" height="7" rx="3.5" fill="#0b0e11" stroke="#44505c"/><rect id="gauge" x="${x-49}" y="${y+30}" width="${98*p.charge/p.cap}" height="5" rx="2.5" fill="#5fd08a"/>`;
+  s+=`<rect class="tap" data-p="${p.id}" x="${x-58}" y="${y-26}" width="116" height="52" fill="transparent"/>`;
+  return s+sym('battery',x,y-42,L.def.symOp);
+}
+function drawBulb(p, water){
+  const {x,y}=p, r=Math.max(0,p.ratio||0), gy=y-34, g=Math.min(1,Math.pow(r,.6)); let s='';
+  if(water){
+    s+=pipeSeg(`M${x-40} ${y+28}Q${x-40} ${gy} ${x} ${gy}`,p.va)+pipeSeg(`M${x} ${gy}Q${x+40} ${gy} ${x+40} ${y+28}`,p.vb);
+    s+=`<circle cx="${x}" cy="${gy}" r="25" fill="#35414c" stroke="${p.burned?'#ff7b6e':'#9aa6b2'}" stroke-width="2"/>`;
+    s+=`<g data-spin="${p.id}" data-cx="${x}" data-cy="${gy}" data-rate="${p.i*600}"><path d="M0 -19V19M-16.5 -9.5L16.5 9.5M-16.5 9.5L16.5 -9.5" stroke="${p.burned?'#ff7b6e':'#bfe3ff'}" stroke-width="4" stroke-linecap="round"/></g>`;
+    s+=`<text class="lbl ${p.burned?'warn':''}" x="${x}" y="${y+10}">${p.burned?'JAMMED · TAP':'NARROW WHEEL'}</text>`;
+  } else {
+    s+=`<path class="lead" d="M${x-40} ${y+28}L${x-10} ${y+17}M${x+40} ${y+28}L${x+10} ${y+17}"/>`;
+    if(r>.004) s+=`<circle cx="${x}" cy="${gy}" r="${36+Math.min(1.7,r)*30}" fill="url(#glow)" opacity="${Math.min(1,.12+g*.88)}"/>`;
+    s+=`<circle cx="${x}" cy="${gy}" r="30" fill="${p.burned?'rgba(20,20,22,.9)':`rgba(255,238,180,${.07+g*.55})`}" stroke="#bcc6d0" stroke-width="1.5"/>`;
+    const fc = p.burned ? '#4a4f55' : r>.004 ? mix('#a8421a','#fff6d2',g) : '#7d8791';
+    s+= p.burned ? `<path d="M${x-7} ${y-8}V${gy+4}l3 -7M${x+7} ${y-8}V${gy+4}l-3 -7" fill="none" stroke="${fc}" stroke-width="2"/>`
+                 : `<path d="M${x-7} ${y-8}V${gy+4}l3.5 -8l3.5 8l3.5 -8l3.5 8V${y-8}" fill="none" stroke="${fc}" stroke-width="${2+g}" stroke-linejoin="round"/>`;
+    s+=`<rect x="${x-12}" y="${y-8}" width="24" height="26" rx="3" fill="url(#metal)"/><path d="M${x-12} ${y-1}h24M${x-12} ${y+5}h24M${x-12} ${y+11}h24" stroke="#56606b" stroke-width="1"/>`;
+    if(p.burned) s+=`<text class="lbl warn" x="${x}" y="${gy+4}">TAP</text>`;
+  }
+  if(L.def.show.includes('pct')) s+=`<text class="lbl" x="${x}" y="${y+50}">${p.burned?'BURNED OUT':Math.round(r*100)+'% POWER'}</text>`;
+  s+=`<circle class="tap" data-p="${p.id}" cx="${x}" cy="${gy}" r="32" fill="transparent"/>`;
+  return s+sym('bulb',x+54,gy-22,L.def.symOp);
+}
+function drawSwitch(p, water){
+  const {x,y}=p; let s='';
+  if(water){
+    s+=pipeSeg(`M${x} ${y-40}V${y}`,p.va)+pipeSeg(`M${x} ${y}V${y+40}`,p.vb);
+    s+=`<circle cx="${x}" cy="${y}" r="15" fill="#35414c" stroke="#9aa6b2" stroke-width="2"/>`;
+    s+= p.closed ? `<rect x="${x-4}" y="${y-22}" width="8" height="44" rx="4" fill="#5fd08a"/>` : `<rect x="${x-22}" y="${y-4}" width="44" height="8" rx="4" fill="#ff7b6e"/>`;
+    s+=`<text class="lbl" x="${x+2}" y="${y+62}">${p.closed?'VALVE OPEN':'VALVE SHUT'}</text>`;
+  } else {
+    s+=`<path class="lead" d="M${x} ${y-40}V${y-22}M${x} ${y+22}V${y+40}"/>`;
+    s+=`<rect x="${x-16}" y="${y-30}" width="32" height="60" rx="6" fill="#33404c" stroke="#56626e"/>`;
+    s+=`<circle cx="${x}" cy="${y-22}" r="5" fill="#d8b25a"/><circle cx="${x}" cy="${y+22}" r="5" fill="#d8b25a"/>`;
+    const ex=p.closed?x:x+27, ey=p.closed?y-26:y-16;
+    s+=`<path d="M${x} ${y+22}L${ex} ${ey}" stroke="#e3e8ed" stroke-width="5" stroke-linecap="round"/><circle cx="${ex}" cy="${ey}" r="6" fill="#14181d" stroke="#8f9ba7"/>`;
+    s+=`<text class="lbl" x="${x+2}" y="${y+62}">${p.closed?'CLOSED':'OPEN'}</text>`;
+  }
+  s+=`<rect class="tap" data-p="${p.id}" x="${x-30}" y="${y-30}" width="60" height="60" fill="transparent"/>`;
+  return s+sym('switch',x-36,y,L.def.symOp,p);
+}
+function drawFuse(p, water){
+  const {x,y}=p; let s='';
+  if(water){
+    s+=pipeSeg(`M${x} ${y-40}V${y}`,p.va)+pipeSeg(`M${x} ${y}V${y+40}`,p.vb);
+    s+=`<rect x="${x-13}" y="${y-17}" width="26" height="34" rx="5" fill="#35414c" stroke="${p.blown?'#ff7b6e':'#9aa6b2'}" stroke-width="2"/>`;
+    s+= p.blown ? `<rect x="${x-18}" y="${y-4}" width="36" height="8" rx="4" fill="#ff7b6e"/>` : `<path d="M${x} ${y-11}l5 4l-10 4l10 4l-5 4" fill="none" stroke="#bfe3ff" stroke-width="2"/>`;
+    s+=`<text class="lbl ${p.blown?'warn':''}" x="${x-4}" y="${y+62}">${p.blown?'SHUT · TAP':'SAFETY SHUTOFF'}</text>`;
+  } else {
+    s+=`<path class="lead" d="M${x} ${y-40}V${y-28}M${x} ${y+28}V${y+40}"/>`;
+    s+=`<rect x="${x-7}" y="${y-19}" width="14" height="38" fill="${p.blown?'rgba(40,30,25,.8)':'rgba(255,255,255,.14)'}" stroke="#bcc6d0"/>`;
+    s+= p.blown ? `<path d="M${x} ${y-19}v10M${x} ${y+19}v-10" stroke="#8f9ba7" stroke-width="1.5"/>` : `<path d="M${x} ${y-19}V${y+19}" stroke="#e3e8ed" stroke-width="1.5"/>`;
+    s+=`<rect x="${x-9}" y="${y-30}" width="18" height="12" rx="2" fill="url(#metal)"/><rect x="${x-9}" y="${y+18}" width="18" height="12" rx="2" fill="url(#metal)"/>`;
+    s+=`<text class="lbl ${p.blown?'warn':''}" x="${x-4}" y="${y+62}">${p.blown?'BLOWN · TAP':p.rating+' A FUSE'}</text>`;
+  }
+  s+=`<rect class="tap" data-p="${p.id}" x="${x-24}" y="${y-30}" width="48" height="60" fill="transparent"/>`;
+  return s+sym('fuse',x+34,y,L.def.symOp);
+}
+let spins=[];
+function draw(){
+  const c=L.c, water=S.water, st=L.def.steps[L.step]||{};
+  const has=(a,b)=>c.wires.find(w=>(w.a===a&&w.b===b)||(w.a===b&&w.b===a));
+  let hw='';
+  for(const w of c.wires){
+    w.g=geom(w);
+    hw+=`<g data-w="${w.id}">`+(water ? pipeSeg(w.g.d,(w.va+w.vb)/2) : `<path d="${w.g.d}" class="wireO"/><path d="${w.g.d}" class="wire ${Math.abs(w.i)>E.WIRE_MAX?'hot':''}"/>`)+`<path d="${w.g.d}" class="hit"/></g>`;
+  }
+  if(L.ghost){
+    for(const [a,b] of st.ghost||[]) if(!has(a,b)) hw+=`<path class="ghost" d="${geom({a,b}).d}"/>`;
+    for(const [a,b] of st.cut||[]) if(has(a,b)) hw+=`<path class="ghost cut" d="${geom({a,b}).d}"/>`;
+  }
+  $('#gWires').innerHTML=hw;
+  let hp='', ht='';
+  for(const p of c.parts){
+    if(p.hidden) continue;
+    hp += p.type==='battery'?drawBattery(p,water): p.type==='bulb'?drawBulb(p,water): p.type==='switch'?drawSwitch(p,water): drawFuse(p,water);
+    for(const k of ['a','b']){ const id=p.id+'.'+k, t=L.tp[id]; ht+=`<g data-t="${id}"><circle class="term ${L.sel===id?'sel':''}" cx="${t.x}" cy="${t.y}" r="9"/><circle class="thit" cx="${t.x}" cy="${t.y}" r="23"/></g>`; }
+  }
+  $('#gParts').innerHTML=hp; $('#gTerms').innerHTML=ht;
+  let hd='';
+  for(const w of c.wires){ w.n=Math.max(1,Math.floor(w.g.len/26)); for(let k=0;k<w.n;k++) hd+=`<circle r="${water?3.4:3}" fill="${water?'#f1f9ff':'#ffe08a'}" data-d="${w.id}"/>`; }
+  $('#gDots').innerHTML=hd;
+  const all=$('#gDots').children; let q=0;
+  for(const w of c.wires){ w.dots=[]; for(let k=0;k<w.n;k++) w.dots.push(all[q++]); }
+  spins=[...document.querySelectorAll('[data-spin]')].map(el=>({el,id:el.dataset.spin,cx:+el.dataset.cx,cy:+el.dataset.cy,rate:+el.dataset.rate}));
+  animate(0);
+}
+function animate(dt){
+  for(const w of L.c.wires){
+    const I=w.i||0, on=Math.abs(I)>.004;
+    w.ph=(w.ph||0)+Math.min(520,Math.abs(I)*110)*dt*(I>0?1:-1);
+    const sp=w.g.len/w.n;
+    w.dots.forEach((d,k)=>{
+      if(!on){ d.setAttribute('visibility','hidden'); return; }
+      const s=(((k*sp+w.ph)%w.g.len)+w.g.len)%w.g.len, pt=bez(w.g,s/w.g.len);
+      d.setAttribute('visibility','visible'); d.setAttribute('cx',pt.x.toFixed(1)); d.setAttribute('cy',pt.y.toFixed(1));
+      d.setAttribute('opacity',Math.min(1,.45+Math.abs(I)*.8).toFixed(2));
+    });
+  }
+  for(const s of spins){ L.ang[s.id]=((L.ang[s.id]||0)+Math.max(-1500,Math.min(1500,s.rate))*dt)%360; s.el.setAttribute('transform',`translate(${s.cx} ${s.cy}) rotate(${L.ang[s.id].toFixed(1)})`); }
+  const g=$('#gauge'), bat=L.c.parts[0];
+  if(g) g.setAttribute('width',Math.max(0,98*bat.charge/bat.cap).toFixed(1));
+}
+function chips(){
+  const sh=L.def.show, bat=L.c.parts.find(p=>p.type==='battery'), i=Math.max(0,L.sol.iBat); let h='';
+  if(sh.includes('volts')) h+=`<span class="chip">Push (voltage) <b>${+(bat.cells*bat.vCell).toFixed(1)} V</b></span>`;
+  if(sh.includes('amps')) h+=`<span class="chip ${i>E.WIRE_MAX?'bad':''}">Flow (current) <b>${fmtA(i)}</b></span>`;
+  if(sh.includes('life')) h+=`<span class="chip">Battery lasts <b>${i>.01&&!bat.dead?(bat.cap/i).toFixed(1)+' h':'—'}</b></span>`;
+  if(S.water) h+=`<span class="chip">Darker blue = more pressure</span>`;
+  $('#chips').innerHTML=h;
+  if(L.def.cells) $('#cellCount').textContent=`${bat.cells} cell${bat.cells>1?'s':''} in the pack`;
+}
+
+/* ---------- effects ---------- */
+let toastT;
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),1900); }
+function sparks(x,y,n){
+  let h=''; for(let k=0;k<n;k++){ const a=Math.random()*6.28, d=22+Math.random()*46; h+=`<circle class="spark" cx="${x}" cy="${y}" r="${1.5+Math.random()*2.5}" style="--dx:${(Math.cos(a)*d).toFixed(0)}px;--dy:${(Math.sin(a)*d).toFixed(0)}px"/>`; }
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.innerHTML=h; $('#gFx').appendChild(g); setTimeout(()=>g.remove(),1700);
+  return g;
+}
+function shake(){ const b=$('#boardWrap'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); }
+function onEvents(evs){
+  for(const ev of evs){
+    L.events[ev.type]=true; L.lastEvent=ev;
+    if(ev.type==='wireMelted'){ const m=bez(ev.ref.g,.5); const g=sparks(m.x,m.y,18); g.insertAdjacentHTML('afterbegin',`<path class="char" d="${ev.ref.g.d}"/>`); shake(); toast(S.water?'Pipe burst!':'Wire melted!'); }
+    if(ev.type==='fuseBlown'){ sparks(ev.ref.x,ev.ref.y,10); toast(S.water?'Safety shutoff snapped shut':'Fuse blew!'); }
+    if(ev.type==='bulbBurned'){ sparks(ev.ref.x,ev.ref.y-34,14); shake(); toast(S.water?'Wheel jammed!':'Bulb burned out!'); }
+    if(ev.type==='batteryDead') toast('Battery is flat. Tap it for a new one.');
+  }
+}
+
+/* ---------- sheet: why + hints ---------- */
+function sheet(t,p,more){ $('#sheetT').textContent=t; $('#sheetP').textContent=p; $('#sheetMore').hidden=!more; $('#sheet').hidden=false; }
+function hideSheet(){ $('#sheet').hidden=true; }
+$('#sheetX').onclick=hideSheet;
+function whyText(){
+  const c=L.c, num=L.def.show.includes('amps'), ev=L.lastEvent, live=c.parts.filter(p=>!p.hidden);
+  const bulbs=live.filter(p=>p.type==='bulb'), bat=live.find(p=>p.type==='battery'), iB=L.sol.iBat;
+  if(ev){
+    if(ev.type==='wireMelted') return `The current found a path with almost no resistance, so nothing held it back${num?` and it surged to about ${fmtA(ev.amps)}`:''}. That much current heats a thin wire until it melts. This is a short circuit.`;
+    if(ev.type==='fuseBlown') return `The current surged${num?` to about ${fmtA(ev.amps)}`:''}, far past this fuse’s ${ev.ref.rating} A limit. Its thin strip melted in an instant and broke the loop before the wires could overheat.`;
+    if(ev.type==='bulbBurned') return `${ev.volts.toFixed(1)} volts pushed too much current through a filament built for 6. It overheated and snapped, which also broke the loop.`;
+    if(ev.type==='batteryDead') return 'A battery only stores so much energy. The more current you draw, the faster it empties. This one is now flat.';
+  }
+  if(bat.dead) return 'The battery is flat, so there is no push left to move any current. Tap it to fit a new one.';
+  const lit=bulbs.filter(b=>b.ratio>.01);
+  if(!lit.length){
+    if(iB>1) return 'The current has found a path that skips the bulb. With almost no resistance in the way it is surging, and something is about to give.';
+    if(live.some(p=>p.type==='fuse'&&p.blown)) return 'The fuse is blown, so there is a gap in the loop and nothing can flow. Tap the fuse to fit a new one.';
+    if(bulbs.some(b=>b.burned)) return 'The burned-out filament is broken, which leaves a gap in the loop. Tap the bulb to fit a new one.';
+    if(live.some(p=>p.type==='switch'&&!p.closed) && E.closedCopy(c).sol.iBat>.005) return 'The switch is open, which leaves a gap in the loop. Current can’t jump a gap, so nothing flows.';
+    return 'There is no complete loop yet. Current only flows when there is an unbroken path from the battery’s + side, through the parts, and back to its − side.';
+  }
+  if(lit.length>=2){
+    if(lit.every(b=>b.ratio<.5)) return `Both bulbs sit in the same loop, so the current has to get through two resistances instead of one. Less current flows${num?` (${fmtA(iB)})`:''}, and each bulb gets only half the battery’s push.`;
+    if(lit.every(b=>b.ratio>=.8)) return `Each bulb has its own path to the battery, so each one gets the full push and shines fully. The battery has to supply both currents at once${num?` (${fmtA(iB)} in total)`:''}, so it drains faster.`;
+  }
+  const b=lit[0];
+  if(b.ratio<.5) return `The bulb is lit but dim. ${+(bat.cells*bat.vCell).toFixed(1)} volts is not enough push to drive full current through its filament.`;
+  if(b.ratio>1.3) return 'This is more push than the bulb is built for. It is extra bright and running hot. A little more and the filament will burn out.';
+  return `The loop is complete, so current flows out of the battery’s + side, through the bulb’s thin filament, and back to −${num?` (${fmtA(iB)})`:''}. The filament resists the flow, heats up and glows.`;
+}
+$('#why').onclick=()=>sheet('Why did that happen?',whyText(),false);
+function showHint(){
+  const st=L.def.steps[L.step]; L.tier=Math.min(3,L.tier+1);
+  if(L.tier<=2) sheet(`Hint ${L.tier} of 3`,st.hints[L.tier-1],true);
+  else { L.ghost=true; draw(); sheet('Show me',st.show,false); }
+}
+$('#hint').onclick=()=>{ if(L.tier>=3){ sheet('Show me',L.def.steps[L.step].show,false); return; } showHint(); };
+$('#sheetMore').onclick=showHint;
+$('#reset').onclick=()=>startLevel(L.i);
+$('#back').onclick=()=>{ L=null; renderHome(); };
+
+/* ---------- view toggle ---------- */
+function setView(w, quiet){
+  S.water=w; save();
+  $('#vWire').setAttribute('aria-pressed',!w); $('#vPipe').setAttribute('aria-pressed',w);
+  if(!quiet){ chips(); draw(); if(w&&!S.seenWater){ S.seenWater=true; save(); sheet('Same circuit, drawn as plumbing','The pump is the battery: its pressure is voltage. Moving water is current. The narrow wheel is the bulb: it resists the flow and spins instead of glowing.',false); } }
+}
+$('#vWire').onclick=()=>setView(false); $('#vPipe').onclick=()=>setView(true);
+
+/* ---------- touch: tap two dots, or drag from dot to dot ---------- */
+const board=$('#board'), rubber=$('#rubber');
+let drag=null, noClick=0;
+function svgPt(e){ const p=board.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(board.getScreenCTM().inverse()); }
+function nearTerm(pt,max){ let best=null,bd=max; for(const id in L.tp){ const part=L.c.parts.find(p=>p.id===id.split('.')[0]); if(part.hidden) continue; const d=Math.hypot(L.tp[id].x-pt.x,L.tp[id].y-pt.y); if(d<bd){bd=d;best=id;} } return best; }
+function addWire(a,b){
+  if(a===b) return;
+  if(L.c.wires.some(w=>(w.a===a&&w.b===b)||(w.a===b&&w.b===a))){ toast('Those two are already joined'); return; }
+  L.c.wires.push({id:'w'+(++L.wid),a,b}); changed();
+}
+board.addEventListener('pointerdown',e=>{
+  const t=e.target.closest('[data-t]'); if(!t||!L) return;
+  drag={from:t.dataset.t,x:e.clientX,y:e.clientY,moved:false}; try{ board.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+board.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>10) drag.moved=true;
+  if(drag.moved){ const a=L.tp[drag.from], p=svgPt(e); rubber.setAttribute('x1',a.x); rubber.setAttribute('y1',a.y); rubber.setAttribute('x2',p.x); rubber.setAttribute('y2',p.y); rubber.setAttribute('visibility','visible'); }
+});
+function endDrag(e, cancel){
+  if(!drag) return; const d=drag; drag=null; rubber.setAttribute('visibility','hidden'); noClick=Date.now();
+  if(cancel) return;
+  if(d.moved){ const n=nearTerm(svgPt(e),34); L.sel=null; if(n&&n!==d.from) addWire(d.from,n); else draw(); }
+  else if(L.sel&&L.sel!==d.from){ const a=L.sel; L.sel=null; addWire(a,d.from); draw(); }
+  else { L.sel = L.sel===d.from ? null : d.from; draw(); }
+}
+board.addEventListener('pointerup',e=>endDrag(e,false));
+board.addEventListener('pointercancel',e=>endDrag(e,true));
+board.addEventListener('click',e=>{
+  if(!L || Date.now()-noClick<350 || e.target.closest('[data-t]')) return;
+  const w=e.target.closest('[data-w]');
+  if(w){ L.c.wires=L.c.wires.filter(x=>x.id!==w.dataset.w); L.sel=null; changed(); return; }
+  const pe=e.target.closest('[data-p]');
+  if(pe){
+    const p=L.c.parts.find(x=>x.id===pe.dataset.p);
+    if(p.type==='switch'){ p.closed=!p.closed; changed(); }
+    else if(p.type==='fuse'&&p.blown){ p.blown=false; changed(); }
+    else if(p.type==='bulb'&&p.burned){ p.burned=false; changed(); }
+    else if(p.type==='battery'&&p.dead){ p.dead=false; p.charge=p.cap; changed(); }
+    return;
+  }
+  if(L.sel){ L.sel=null; draw(); }
+});
+function setCells(d){ const bat=L.c.parts.find(p=>p.type==='battery'), [lo,hi]=L.def.cells; const n=Math.max(lo,Math.min(hi,bat.cells+d)); if(n!==bat.cells){ bat.cells=n; changed(); } }
+$('#cellMinus').onclick=()=>setCells(-1); $('#cellPlus').onclick=()=>setCells(1);
+
+/* ---------- goals ---------- */
+function checkGoal(dt){
+  if(L.won) return;
+  const st=L.def.steps[L.step];
+  L.hold = st.test.every(t=>E.check(L.c,t,L.events)) ? L.hold+dt : 0;
+  if(L.hold<.9) return;
+  L.step++; L.events={}; L.hold=0; L.tier=0; L.ghost=false; hideSheet();
+  if(L.step>=L.def.steps.length){ L.step=L.def.steps.length-1; win(); return; }
+  for(const p of L.c.parts) if((p.fromStep||0)<=L.step) p.hidden=false;
+  updateGoal(); const g=$('#goal'); g.classList.remove('pop'); void g.offsetWidth; g.classList.add('pop');
+  toast('Step done'); resolve(); draw();
+}
+function win(){
+  L.won=true; const d=L.def, first=!S.done[d.id]; S.done[d.id]=true;
+  let n=0; for(const q of CARDS) if(q.level===d.id&&!S.cards[q.id]){ S.cards[q.id]={box:0,due:Date.now()}; n++; }
+  save();
+  const nx=LEVELS[L.i+1], btns=[];
+  if(nx) btns.push(['Next: '+nx.title,()=>startLevel(L.i+1)]);
+  btns.push(['Quiz me on this',()=>{ L=null; startQuiz(); },!!nx]);
+  btns.push(['Back to town',()=>{ L=null; renderHome(); },true]);
+  modal(first?'House powered':'Powered again', d.learned, n?`${n} new quiz cards unlocked.`:'', btns);
+}
+
+/* ---------- quiz: simple spaced repetition ---------- */
+function startQuiz(){
+  const q=shuffle(dueCards()).slice(0,10); if(!q.length){ renderHome(); return; }
+  quiz={queue:q,done:0,total:q.length}; show('quiz'); showCard();
+}
+function showCard(){
+  const q=quiz.queue[0];
+  if(!q){ renderHome(); modal('Review done','Cards you got right come back after longer and longer gaps. Missed ones come back sooner.','',[['Back to town',null]]); return; }
+  $('#qCount').textContent=`Card ${Math.min(quiz.done+1,quiz.total)} of ${quiz.total}`;
+  $('#qText').textContent=q.q; $('#qWhy').textContent=''; $('#qNext').hidden=true;
+  const box=$('#qOpts'); box.innerHTML='';
+  shuffle(q.a.map((t,i)=>({t,ok:i===0}))).forEach(o=>{
+    const b=document.createElement('button'); b.className='opt'; b.textContent=o.t; if(o.ok) b.dataset.ok=1;
+    b.onclick=()=>{
+      box.querySelectorAll('button').forEach(x=>{ x.disabled=true; if(x.dataset.ok) x.classList.add('right'); });
+      const st=S.cards[q.id]; quiz.queue.shift();
+      if(o.ok){ st.box=Math.min(5,st.box+1); st.due=Date.now()+IV[st.box]*DAY; if(!q._retry) quiz.done++; }
+      else { b.classList.add('wrong'); st.box=0; st.due=Date.now(); if(!q._retry){ quiz.done++; quiz.queue.push({...q,_retry:true}); } else quiz.queue.push(q); }
+      save(); $('#qWhy').textContent=(o.ok?'Right. ':'Not quite. ')+q.why; $('#qNext').hidden=false;
+    };
+    box.appendChild(b);
+  });
+}
+$('#qNext').onclick=showCard; $('#qBack').onclick=renderHome; $('#quizGo').onclick=startQuiz;
+
+/* ---------- main loop ---------- */
+let last=0;
+function frame(ts){
+  const dt=Math.min(.05,(ts-last)/1000||0); last=ts;
+  if(L && !$('#play').hidden && $('#modal').hidden){
+    const ev=E.tick(L.c,dt,{drain:L.def.drain,accel:600});
+    if(ev.length){ onEvents(ev); resolve(); draw(); }
+    animate(dt); checkGoal(dt);
+  }
+  requestAnimationFrame(frame);
+}
+renderHome(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
