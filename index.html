@@ -70,6 +70,9 @@ p{margin:0}
 #topS{font-family:var(--display);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 #topP{font-size:15.5px}
 #ask{display:flex;gap:8px;align-items:center}
+#ex[hidden]{display:none!important}
+#exIn{resize:none;width:100%}
+#top{max-height:46%;overflow-y:auto}
 #ask input{width:110px}
 #fb{font-size:15px}
 #fb.ok{color:var(--good)} #fb.no{color:var(--bad)}
@@ -94,7 +97,7 @@ p{margin:0}
 .tp:disabled{opacity:.35}
 .tp i{font-style:normal;color:var(--muted);font-weight:500}
 #sliders{display:flex;flex-direction:column;gap:4px}
-.sl{display:grid;grid-template-columns:104px 1fr 62px;gap:8px;align-items:center;font-size:14px}
+.sl{display:grid;grid-template-columns:96px 1fr 92px;gap:8px;align-items:center;font-size:14px}
 .sl b{font-family:var(--display);font-size:19px;text-align:right;font-variant-numeric:tabular-nums}
 .sl input{padding:0;height:34px;border:0;background:none;accent-color:var(--accent)}
 .actions{display:grid;grid-template-columns:1.6fr 1fr 1fr .8fr;gap:6px}
@@ -155,7 +158,7 @@ p{margin:0}
   <div>
     <div class="eyebrow">World 1 of 5</div>
     <h1>Power the Town</h1>
-    <p class="tiny" style="font-size:15px;margin-top:4px">Each chapter: watch a demo, experiment in the lab, then solve puzzles with no instructions.</p>
+    <p class="tiny" style="font-size:15px;margin-top:4px">Each chapter: a demo, a lab, puzzles with no instructions, then the same ideas again as a waterworks.</p>
   </div>
   <div id="chapters" style="display:flex;flex-direction:column;gap:10px"></div>
   <div class="panel">
@@ -178,14 +181,11 @@ p{margin:0}
 <section id="play" class="screen" hidden>
   <div class="bar">
     <button class="back" id="back">&lsaquo; Home</button>
-    <div class="seg" role="group" aria-label="View">
-      <button id="vWire" aria-pressed="true">Wires</button>
-      <button id="vPipe" aria-pressed="false">Pipes</button>
-    </div>
   </div>
   <div id="top">
     <div><h2 id="topT"></h2><div id="topS"></div></div>
     <p id="topP"></p>
+    <div id="ex" hidden style="display:flex;flex-direction:column;gap:6px"><textarea id="exIn" rows="3" placeholder="Type your explanation"></textarea><button class="btn sm" id="exGo">Compare with the model answer</button></div>
     <div id="ask" hidden><input id="askIn" inputmode="decimal" autocomplete="off" aria-label="Your answer"><span id="askU"></span><button class="btn sm" id="askGo">Check</button></div>
     <p id="fb" hidden></p>
     <div class="row" id="demoNav" hidden><button class="btn alt sm" id="dPrev">&lsaquo; Back</button><span class="tiny" id="dCount"></span><button class="btn sm" id="dNext">Next &rsaquo;</button></div>
@@ -335,6 +335,13 @@ const E = (() => {
       case 'wired': return of(c,t[1]).filter(p=>['a','b'].every(k=>c.wires.some(w=>w.a===p.id+'.'+k||w.b===p.id+'.'+k))).length>=t[2];
       case 'prop': return c.parts.some(p=>p.id===t[1]&&p[t[2]]===t[3]);
       case 'event': return !!events[t[1]];
+      case 'independent': case 'logic': {
+        const sws=of(c,'switch'); if(sws.length!==2) return false;
+        const lit=(s0,s1)=>variant(c,p=>{ if(p.id===sws[0].id) p.closed=s0; if(p.id===sws[1].id) p.closed=s1; }).c.parts.filter(p=>p.type==='bulb').map(b=>b.ratio>=.5);
+        const both=lit(true,true), a=lit(true,false), b=lit(false,true), none=lit(false,false), any=x=>x.some(v=>v);
+        if(t[0]==='logic') return any(both)&&any(a)&&any(b)&&!any(none);
+        return both.length===2 && both.every(v=>v) && !any(none) && a.filter(v=>v).length===1 && b.filter(v=>v).length===1 && a[0]!==b[0];
+      }
     }
     return false;
   }
@@ -355,7 +362,7 @@ const vm=(id,s,x)=>({id,type:'voltmeter',s,...x});
 const LOOP=[['c.b','b.b'],['b.a','c.a']];
 const T={ cell:n=>({label:'Cell 1.5 V',type:'battery',n:1,count:n}), pack:(n)=>({label:(n*1.5)+' V pack',type:'battery',n,count:1}),
   b15:n=>({label:'1.5 V bulb',type:'bulb',kind:'b15',count:n}), b6:n=>({label:'6 V bulb',type:'bulb',kind:'b6',count:n}),
-  r:R=>({label:R+' Ω',type:'resistor',R,count:1}), sw:{label:'Switch',type:'switch',count:1}, am:{label:'Ammeter',type:'ammeter',count:1}, vm:{label:'Voltmeter',type:'voltmeter',count:1} };
+  r:(R,n=1)=>({label:R+' Ω',type:'resistor',R,count:n}), sw:(n=1)=>({label:'Switch',type:'switch',count:n}), am:{label:'Ammeter',type:'ammeter',count:1}, vm:{label:'Voltmeter',type:'voltmeter',count:1} };
 
 const CHAPTERS = [
 { id:'c1', title:'Circuits and current', stages:[
@@ -380,29 +387,49 @@ const CHAPTERS = [
     learned:'One cell, one bulb, one unbroken loop.',
     hints:['Tap a part in the tray, then tap a dashed spot to place it. Tap one metal dot, then another, to run a wire.','Both ends of the bulb need a wire back to the cell: one to +, one to −.'],
     sol:{parts:[bat('c',10),bulb('b',1)],wires:LOOP} },
-  { id:'p2', kind:'build', name:'2', goal:'Build a lamp with a working on/off switch. Turn it on, then off.', tray:[T.cell(1),T.b15(1),T.sw],
-    steps:[[['allBulbs',.8,1.3],['switchCarries']],[['switchBreaks']]], learned:'A switch only controls the bulb if the current has to pass through it.',
-    hints:['The current must have no way around the switch.','Make one loop: cell, switch, bulb, back to the cell. Tap the switch to flip it.'],
-    sol:{parts:[bat('c',10),bulb('b',1),sw('s',3,true)],wires:[['c.b','b.b'],['b.a','s.b'],['s.a','c.a']]} },
-  { id:'p3', kind:'build', name:'3', goal:'Measure the current through the lit bulb with the ammeter.', tray:[T.cell(1),T.b15(1),T.am], test:[['allBulbs',.8,1.3],['meterA',.2,.4]],
-    learned:'An ammeter goes in the loop, in line with the part. It has almost no resistance, so across a cell it is a short circuit.',
-    hints:['The flow has to pass THROUGH the meter.','Break the loop at any point and put the ammeter in the gap.'],
-    sol:{parts:[bat('c',10),bulb('b',1),am('m',5)],wires:[['c.b','m.b'],['m.a','b.b'],['b.a','c.a']]} },
-  { id:'p4', kind:'build', name:'4', goal:'Light two bulbs from one cell so that ONE switch turns both off. Show it working, then switch it off.', tray:[T.cell(1),T.b15(2),T.sw],
-    steps:[[['lit',.05,2],['switchCarries']],[['switchBreaks']]], learned:'There is more than one way to do this. You will meet both, series and parallel, in chapters 4 and 5.',
+  { id:'p2', kind:'build', name:'2', goal:'Build a lamp with an on/off switch and an ammeter that shows the bulb’s current. Switch it on, then off.', tray:[T.cell(1),T.b15(1),T.sw(),T.am],
+    steps:[[['allBulbs',.8,1.3],['switchCarries'],['meterA',.2,.4]],[['switchBreaks']]], learned:'Switch, bulb and ammeter all sit in the same single loop, so the same current passes through each of them.',
+    hints:['The current must have no way around the switch or the meter.','One loop: cell, switch, bulb, ammeter, back to the cell. Order does not matter.'],
+    sol:{parts:[bat('c',10),bulb('b',1),sw('s',3,true),am('m',5)],wires:[['c.b','m.b'],['m.a','b.b'],['b.a','s.b'],['s.a','c.a']]} },
+  { id:'p3', kind:'build', name:'3', goal:'This lamp circuit has a fault. Close the switch to see what it does, then repair it. Done when the lamp lights and the ammeter shows the bulb’s current.', tray:[],
+    start:{parts:[bat('c',10),bulb('b',1),sw('s',3),am('m',5)],wires:[['c.b','m.b'],['m.a','b.b'],['b.a','s.b'],['s.a','c.a'],['m.a','s.b']]},
+    test:[['allBulbs',.8,1.3],['switchCarries'],['meterA',.2,.4]], learned:'One stray wire gave the current a path around the bulb. With nothing to resist it, the current surged. Always trace the whole path from + to −.',
+    hints:['Trace the path from + back to − with your finger. Does the current HAVE to go through the bulb?','One wire joins the ammeter straight to the switch and bypasses the bulb. Tap it to remove it, and replace any wire that melted.'],
+    sol:{parts:[bat('c',10),bulb('b',1),sw('s',3,true),am('m',5)],wires:[['c.b','m.b'],['m.a','b.b'],['b.a','s.b'],['s.a','c.a']]} },
+  { id:'p4', kind:'build', name:'4', goal:'Light two bulbs from one cell so that ONE switch turns both off. Show it working, then switch it off.', tray:[T.cell(1),T.b15(2),T.sw()],
+    steps:[[['lit',.05,2],['switchCarries']],[['switchBreaks']]], learned:'There is more than one way to do this. You will study both, series and parallel, in chapters 4 and 5.',
     hints:['All the current for both bulbs has to pass through the switch.','Easiest: one loop through the cell, the switch and both bulbs. The bulbs will be dim. That is expected.'],
     sol:{parts:[bat('c',10),bulb('b',0),bulb('b2',2),sw('s',9,true)],wires:[['c.b','b2.b'],['b2.a','b.b'],['b.a','s.a'],['s.b','c.a']]} },
+  { id:'p5', kind:'build', name:'5', goal:'Two lamps, two switches, one cell. Each switch must control its own lamp without affecting the other. Both lamps must be bright.', tray:[T.cell(1),T.b15(2),T.sw(2)], test:[['independent']],
+    learned:'Each lamp got its own complete loop back to the cell, with its own switch in it. A gap in one loop leaves the other loop untouched.',
+    hints:['One loop cannot do this. If two lamps share a single loop, a gap anywhere kills both.','Give each lamp its own path: cell +, through a switch, through a lamp, back to cell −. Two separate paths that only meet at the cell.'],
+    sol:{parts:[bat('c',10),bulb('b',0),bulb('b2',2),sw('s',9,true),sw('s2',11,true)],wires:[['c.b','s2.a'],['s2.b','b2.b'],['b2.a','c.a'],['c.b','b.b'],['b.a','s.a'],['s.b','c.a']]} },
+  { id:'p6', kind:'build', name:'6', goal:'Hallway lamp: it must light when EITHER switch is closed, and go dark only when both are open.', tray:[T.cell(1),T.b15(1),T.sw(2)], test:[['logic','or']],
+    learned:'Two switches side by side give the current two ways through. Either one completes the loop. Two switches one after the other would need both.',
+    hints:['If the current must pass through both switches, one open switch stops it. So it must NOT have to pass through both.','Join the two switches to each other at both ends (left to left, right to right). Then treat the pair as a single switch in the lamp’s loop.'],
+    sol:{parts:[bat('c',10),bulb('b',1),sw('s',3,true),sw('s2',6)],wires:[['c.b','b.b'],['b.a','s.b'],['s.b','s2.b'],['s.a','s2.a'],['s2.a','c.a']]} },
+  { id:'water', kind:'lab', water:true, name:'Water', hmax:2, learned:'A circuit is a loop that is already full. The cell does not supply charge; it pushes the charge that is already there, and all of it comes back.',
+    parts:[bat('c',10),sw('s',0),am('m',1),bulb('b',2),am('m2',3,{masked:true})], wires:[['c.b','s.a'],['s.b','m.a'],['m.b','b.a'],['b.b','m2.a'],['m2.b','c.a']],
+    tasks:[
+      { text:'Side view of a loop of pipe, completely full of water. Pump = cell. Gate = switch. Wheel = bulb. Counters = ammeters. Height = voltage (1 m is 1 V). Flow = current (1 L/s is 1 A). The gate is shut, yet the pipe beyond it is already full. In the electric circuit, what are the wires already full of, and what does that say about the cell’s job?', explain:'The wires are already full of charge that is free to move. The cell does not make or supply that charge. Its job is to push the charge that is already there around the loop, like a pump circulating water that is already in the pipe.' },
+      { text:'Tap the gate to open it.', test:[['switchCarries']] },
+      { text:'The first counter shows the flow into the wheel. Over one minute, how many litres come OUT of the wheel?', unit:'L', read:['meterA','m2'], mul:60, tol:.7, unmask:['m2'],
+        why:'Everything that goes in comes out. The wheel takes energy from the water, not water. A bulb takes energy from the current, not charge.' },
+      { text:'The far counter is a long way down the pipe from the gate. If you shut the gate now, how many seconds until the flow at the far counter stops?', unit:'s', value:0, tol:.05, set:{s:{closed:false}},
+        why:'At once. The pipe is full, so when the water at the gate stops, all of it stops. That is why a lamp goes out the instant you flip a switch, however long the wire.' },
+      { text:'A friend says: “the bulb nearest the battery gets the current first and uses some up, so less comes back.” Use the water loop to explain what is wrong with that.', explain:'Water is not used up by the wheel: the same litres per second leave it as entered it, and the flow is the same at every point of the loop. Likewise the current is the same everywhere in a single loop. What gets used is energy: the water (or charge) arrives back at the pump having lost its height (voltage).' },
+    ]},
 ]},
 { id:'c2', title:'Voltage: the push', stages:[
   { id:'demo', kind:'demo', name:'Demo', learned:'Voltage is the push between two points, measured in volts with a voltmeter connected across them. Cells in a row add their pushes.', slides:[
     { cap:'Voltage is how hard a cell pushes. It is measured in volts (V). A voltmeter connects ACROSS the two points you are comparing. One cell: about 1.5 V.', parts:[bat('c',10),vm('v',1)], wires:[['c.a','v.a'],['c.b','v.b']] },
-    { cap:'Water picture. The cell is a pump. The thin tubes show the pressure at each point. The pump lifts the level by 1.5, and it drops back down across the bulb.', pipes:true, parts:[bat('c',10),bulb('b',1)], wires:LOOP },
+    { cap:'Water picture, side view. The cell is a pump that lifts the water 1.5 m. The water falls back down through the wheel (the bulb). Height is voltage: what the pump lifts, the loop must drop.', water:true, hmax:2, parts:[bat('c',10),bulb('b',1)], wires:LOOP },
     { cap:'Cells in a row, + of one to − of the next, stack their pushes: 1.5 + 1.5 = 3 V.', parts:[bat('c',9),bat('c2',10),vm('v',1)], wires:[['c.b','c2.a'],['v.a','c.a'],['v.b','c2.b']] },
     { cap:'This bulb is made for 6 V. On one cell there is too little push: a small current and a faint glow.', parts:[bat('c',10),bulb('b',1,'b6'),am('m',5)], wires:[['c.b','m.b'],['m.a','b.b'],['b.a','c.a']] },
     { cap:'Four cells stacked make 6 V. Four times the push drives four times the current through the same bulb.', parts:[bat('c',10,4),bulb('b',1,'b6'),am('m',5)], wires:[['c.b','m.b'],['m.a','b.b'],['b.a','c.a']] },
     { cap:'Turn one cell around and it pushes against the other. They cancel: 1.5 − 1.5 = 0 V.', parts:[bat('c',9),bat('c2',10),vm('v',1)], wires:[['c.a','c2.a'],['v.a','c.b'],['v.b','c2.b']] },
     { cap:'Voltage is always between two points. Across the working bulb you find nearly all of the battery’s 6 V.', parts:[bat('c',10,4),bulb('b',1,'b6'),vm('v',3)], wires:[...LOOP,['v.a','b.a'],['v.b','b.b']] },
-    { cap:'Across a plain wire in the same circuit: almost nothing. A good wire needs hardly any push. Switch to Pipes and compare the tubes at each end.', parts:[bat('c',10,4),bulb('b',1,'b6'),vm('v',5)], wires:[...LOOP,['v.a','b.b'],['v.b','c.b']] },
+    { cap:'Across a plain wire in the same circuit: almost nothing. A good wire needs hardly any push.', parts:[bat('c',10,4),bulb('b',1,'b6'),vm('v',5)], wires:[...LOOP,['v.a','b.b'],['v.b','c.b']] },
   ]},
   { id:'lab', kind:'lab', name:'Lab', learned:'More cells, more volts, more current through the same bulb, in step with each other. Past its limit the filament burns out.',
     parts:[bat('c',10,1),bulb('b',1,'b6'),am('m',5),vm('v',3)], wires:[['c.b','m.b'],['m.a','b.b'],['b.a','c.a'],['v.a','b.a'],['v.b','b.b']],
@@ -433,12 +460,35 @@ const CHAPTERS = [
     parts:[bat('c',10,2),bulb('b',1,'b6'),am('m',5,{masked:true})], wires:[['c.b','m.b'],['m.a','b.b'],['b.a','c.a']],
     learned:'Half the voltage across the same resistance gives half the current: about 0.25 A.',
     hints:['Two cells is half the push of four.','Half the push through the same bulb gives half the current.'] },
+  { id:'p6', kind:'build', name:'6', goal:'Use all SIX cells in one chain. The voltmeter across the whole chain must read 3 V.', tray:[T.cell(6),T.vm], test:[['meterV',2.9,3.1],['wired','battery',6]],
+    learned:'Four cells one way and two the other: 6 − 3 = 3 V. Every backwards cell costs you twice: it stops adding and starts subtracting.',
+    hints:['Each cell either adds 1.5 or subtracts 1.5. Six cells must net out at 3.','You need four pushing one way and two pushing back. Join the backwards ones + to +.'],
+    sol:{parts:[bat('c',9),bat('c2',10),bat('c3',11),bat('c6',8),bat('c5',7),bat('c4',6),vm('v',0)],wires:[['c.b','c2.a'],['c2.b','c3.a'],['c3.b','c6.b'],['c6.a','c5.b'],['c5.a','c4.a'],['v.b','c4.b'],['v.a','c.a']]} },
+  { id:'p7', kind:'build', name:'7', goal:'Use all FOUR cells in one chain and run the 6 V bulb at between 20% and 30% power.', tray:[T.cell(4),T.b6(1),T.vm], test:[['allBulbs',.2,.3],['wired','battery',4]],
+    learned:'Three forward and one backward leaves 3 V. Half the voltage gives half the current, and power is voltage times current: a quarter.',
+    hints:['Full power needs 6 V. What voltage would give roughly a quarter of the power?','Half the voltage. Get 3 V out of four cells by turning one around.'],
+    sol:{parts:[bat('c',9),bat('c2',10),bat('c3',11),bat('c4',8),bulb('b',1,'b6')],wires:[['c.b','c2.a'],['c2.b','c3.a'],['c3.b','c4.b'],['c4.a','b.b'],['b.a','c.a']]} },
+  { id:'water', kind:'lab', water:true, name:'Water', hmax:12.5, learned:'Voltage is height. Pumps lift, loads drop, and around any loop the lifts and drops cancel exactly.',
+    parts:[bat('c',10,4),am('m',1),bulb('b',2,'b6')], wires:[['c.b','m.a'],['m.b','b.a'],['b.b','c.a']],
+    sliders:[{label:'Pump stages',part:'c',key:'n',min:1,max:8,step:1,fmt:n=>n+' ('+(n*1.5)+' m)'}],
+    tasks:[
+      { text:'Height is voltage: each pump stage lifts the water 1.5 m. This pump has 4 stages. Type the height of the water just AFTER the wheel.', unit:'m', value:0, tol:.2, mask:true,
+        why:'Zero. The water has to arrive back at the bottom of the pump, so everything the pump lifted is lost on the way round, nearly all of it in the wheel.' },
+      { text:'Now six stages. How far will the water fall through the wheel?', unit:'m', set:{c:{n:6}}, read:['meterV','b'], tol:.4, mask:true,
+        why:'Lift equals fall. Six stages lift 9 m, and the wheel is the only real drop, so it takes almost all of it.' },
+      { text:'Three single pumps in a row, but the third one was installed backwards. How far does the water fall through the wheel?', unit:'m', read:['meterV','b'], tol:.15, mask:true, hmax:5,
+        load:{parts:[bat('c',9),bat('c2',10),bat('c3',11),am('m',1,{masked:true}),bulb('b',2,'b6')],wires:[['c.b','c2.a'],['c2.b','c3.b'],['c3.a','m.a'],['m.b','b.a'],['b.b','c.a']]},
+        why:'Up 1.5, up 1.5, down 1.5. The net lift is 1.5 m, so that is all the wheel gets.' },
+      { text:'With a 6 m fall this wheel passed 0.49 L/s. What does the counter read now?', unit:'L/s', read:['meterA','m'], tol:.02, unmask:['m'],
+        why:'A quarter of the fall gives a quarter of the flow: about 0.12 L/s. Flow follows height, as current follows voltage.' },
+      { text:'Water only ever runs downhill through a wheel. What does that tell you about which way current goes through a bulb, and what is the only part that moves it “uphill”?', explain:'Current flows through a bulb (or any resistor) from its higher-voltage end to its lower-voltage end, never the other way. Only the cell (the pump) moves charge from low voltage up to high voltage, and that is where the energy is put in.' },
+    ]},
 ]},
 { id:'c3', title:'Resistance and Ohm’s law', stages:[
   { id:'demo', kind:'demo', name:'Demo', learned:'Ohm’s law: current = voltage ÷ resistance. I = V / R, V = I × R, R = V / I.', slides:[
     { cap:'A resistor holds current back. How much it holds back is its resistance, measured in ohms (Ω). Here 6 V pushes through 12 Ω.', parts:[bat('c',10,4),res('r',1,12),am('m',5)], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a']] },
     { cap:'Same push, double the resistance (24 Ω): half the current.', parts:[bat('c',10,4),res('r',1,24),am('m',5)], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a']] },
-    { cap:'Water picture: resistance is a narrow section of pipe. Same pump pressure, narrower pipe, less flow. All the pressure drop happens across the narrow part.', pipes:true, parts:[bat('c',10,4),res('r',1,24),am('m',5)], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a']] },
+    { cap:'Water picture: resistance is a narrow chute. Same pump lift, narrower chute, less flow. Notice where the height is lost: all of it in the narrow part, none along the wide pipe.', water:true, hmax:6.5, parts:[bat('c',10,4),res('r',1,24),am('m',5)], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a']] },
     { cap:'Put it together. Current (I) = voltage (V) ÷ resistance (R). Here: 6 V ÷ 12 Ω = 0.5 A. This is Ohm’s law. (The meter shows a hair less: the cells and wires have a little resistance too.)', parts:[bat('c',10,4),res('r',1,12),am('m',5),vm('v',3)], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a'],['v.a','r.a'],['v.b','r.b']] },
     { cap:'Rearranged: V = I × R, and R = V ÷ I. Know any two and you can work out the third. Try it on these meters: volts ÷ amps should give 18 Ω.', parts:[bat('c',10,6),res('r',1,18),am('m',5),vm('v',3)], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a'],['v.a','r.a'],['v.b','r.b']] },
     { cap:'A bulb is a resistor that gets hot enough to glow. This 6 V bulb is about 12 Ω, so it passes the same current the 12 Ω resistor did.', parts:[bat('c',10,4),bulb('b',1,'b6'),am('m',5),vm('v',3)], wires:[['c.b','m.b'],['m.a','b.b'],['b.a','c.a'],['v.a','b.a'],['v.b','b.b']] },
@@ -470,6 +520,29 @@ const CHAPTERS = [
   { id:'p5', kind:'calc', name:'5', goal:'The ammeter shows the current through this 36 Ω resistor. What will the voltmeter across it read?', unit:'V', read:['meterV','v'], tol:.35,
     parts:[bat('c',10,6),res('r',1,36),am('m',5),vm('v',3,{masked:true})], wires:[['c.b','m.b'],['m.a','r.b'],['r.a','c.a'],['v.a','r.a'],['v.b','r.b']],
     learned:'V = I × R = 0.25 × 36 = 9 V.', hints:['You know the current and the resistance.','V = I × R.'] },
+  { id:'p6', kind:'build', name:'6', goal:'Get 0.2 A through the ammeter (within 0.01) using only these parts.', tray:[T.pack(4),T.r(12,2),T.r(6),T.am], test:[['meterA',.19,.21]],
+    learned:'You needed R = 6 / 0.2 = 30 Ω and did not have it, so you built it: resistors in a row add up. 12 + 12 + 6 = 30 Ω.',
+    hints:['Work out the resistance you need first. Then look at what you have.','You need 30 Ω. No single resistor is 30, but current forced through several in a row is held back by all of them.'],
+    sol:{parts:[bat('c',10,4),res('r',0,12),res('r2',1,12),res('r3',2,6),am('m',3)],wires:[['r.b','r2.a'],['r2.b','r3.a'],['c.b','r3.b'],['r.a','m.a'],['m.b','c.a']]} },
+  { id:'p7', kind:'build', name:'7', goal:'Run the little 1.5 V bulb from the 9 V pack at 90 to 110% power. It needs 0.3 A.', tray:[T.pack(6),T.b15(1),T.r(12,2),T.r(6),T.r(3),T.am], test:[['allBulbs',.9,1.1]],
+    learned:'The bulb takes 1.5 V, so the resistors must drop the other 7.5 V at 0.3 A: R = 7.5 / 0.3 = 25 Ω. The nearest you can build is 12 + 12 = 24 Ω.',
+    hints:['How many volts must be used up before the bulb, and at what current?','7.5 V at 0.3 A needs about 25 Ω in the loop with the bulb. Build it from two resistors in a row.'],
+    sol:{parts:[bat('c',10,6),res('r',0,12),bulb('b',1),res('r2',2,12)],wires:[['r.b','b.a'],['b.b','r2.a'],['c.b','r2.b'],['r.a','c.a']]} },
+  { id:'water', kind:'lab', water:true, name:'Water', hmax:12.5, learned:'Flow = lift ÷ narrowness, exactly as I = V / R. In a single loop the narrowest part takes the biggest share of the drop.',
+    parts:[bat('c',10,4),am('m',1),res('r',2,12,{rated:25})], wires:[['c.b','m.a'],['m.b','r.a'],['r.b','c.a']],
+    sliders:[{label:'Pump stages',part:'c',key:'n',min:1,max:8,step:1,fmt:n=>n+' ('+(n*1.5)+' m)'},{label:'Narrowness',part:'r',key:'R',min:6,max:48,step:6,fmt:R=>R+' Ω'}],
+    tasks:[
+      { text:'Narrowness is resistance. Right now: 6 m lift, 12 Ω chute, 0.49 L/s. Suppose you double the lift AND double the narrowness. Type the new flow.', unit:'L/s', set:{c:{n:8},r:{R:24}}, read:['meterA','m'], tol:.03,
+        why:'Unchanged. Twice the push through twice the resistance: 12 / 24 = 0.5, the same as 6 / 12.' },
+      { text:'Leave the pump at 12 m. You want the flow down to 0.25 L/s. What narrowness do you need?', unit:'Ω', value:48, tol:2, set:{r:{R:48}},
+        why:'R = V / I = 12 / 0.25 = 48 Ω.' },
+      { text:'New layout: a 9 m pump and two chutes in a row, 12 Ω then 6 Ω. Type the flow.', unit:'L/s', read:['meterA','m'], tol:.03, mask:true, unmask:['m'], hmax:9.5,
+        load:{parts:[bat('c',10,6),am('m',0,{masked:true}),res('r',1,12,{rated:25}),res('r2',2,6,{rated:25})],wires:[['c.b','m.a'],['m.b','r.a'],['r.b','r2.a'],['r2.b','c.a']]},
+        why:'The water must squeeze through both, so their narrowness adds: 18 Ω. 9 / 18 = 0.5 L/s. (Chapter 4 is all about this.)' },
+      { text:'In that two-chute loop, the 6 Ω chute is swapped for a 24 Ω one. How far does the water now fall through the FIRST chute, the 12 Ω one?', unit:'m', set:{r2:{R:24}}, read:['meterV','r'], tol:.3, mask:true,
+        why:'Total narrowness is 36 Ω, so the flow is 9 / 36 = 0.25 L/s. Fall through the 12 Ω chute: V = I × R = 0.25 × 12 = 3 m. The other 6 m falls through the 24 Ω chute.' },
+      { text:'In a loop with two chutes, which one takes the bigger fall, the narrower or the wider, and why? Then say the same thing in electrical words.', explain:'The narrower one. The same flow passes through both, and it takes more height to force that flow through the narrower chute. Electrically: resistors in one loop carry the same current, so the larger resistance has the larger voltage across it (V = I × R).' },
+    ]},
 ]},
 ];
 /* Review cards. Typed answers. num:[value, tolerance, unit] cards are checked automatically. */
@@ -477,7 +550,7 @@ const CARDS = [
   {id:'c1a',after:'c1.demo',q:'Why does a bulb connected to only one end of a cell stay dark?',a:'There is no complete loop. Charge has no path back to the cell, so it cannot flow, and with no current nothing heats the filament.'},
   {id:'c1b',after:'c1.demo',q:'What is electric current, and what unit is it measured in?',a:'Current is electric charge flowing around a circuit. It is measured in amperes (amps, A).'},
   {id:'c1c',after:'c1.lab',q:'An ammeter before a bulb reads 0.30 A. What does an ammeter after the bulb read, and why?',a:'Also 0.30 A. Current is not used up. The same flow that enters the bulb leaves it. The bulb takes energy from the flow, not charge.'},
-  {id:'c1d',after:'c1.p3',q:'How do you connect an ammeter, and what happens if you connect it straight across a cell?',a:'In the loop, in line with the part, so the current flows through it. It has almost no resistance, so across a cell it makes a short circuit and a huge current.'},
+  {id:'c1d',after:'c1.p2',q:'How do you connect an ammeter, and what happens if you connect it straight across a cell?',a:'In the loop, in line with the part, so the current flows through it. It has almost no resistance, so across a cell it makes a short circuit and a huge current.'},
   {id:'c1e',after:'c1.p2',q:'What does opening a switch do to the current in the rest of the loop?',a:'It makes a gap, and the current stops everywhere in the loop at once, not only at the switch.'},
   {id:'c2a',after:'c2.demo',q:'What is voltage? Explain it with the water picture.',a:'Voltage is the push that drives current between two points, measured in volts. In the water picture it is a pressure difference: the cell is a pump that raises the pressure, and the pressure drops across the bulb.'},
   {id:'c2b',after:'c2.demo',q:'How is a voltmeter connected, and how is that different from an ammeter?',a:'A voltmeter goes across the two points you are comparing (beside the part). An ammeter goes in the loop (in line with the part).'},
@@ -497,10 +570,15 @@ const CARDS = [
 <script id="ui">
 (() => {
 const $ = s => document.querySelector(s);
-const KEY = 'power-the-town-v2', DAY = 864e5, IV = [0,1,3,7,16,35];
+const KEY = 'power-the-town-v3', DAY = 864e5, IV = [0,1,3,7,16,35];
 const COLS=[66,180,294], ROWS=[70,165,260,355], TX=34;
-const fresh = () => ({v:2,done:{},cards:{},pipes:false,sound:true});
-let S = (() => { try{ const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.v===2) return s; }catch(e){} return fresh(); })();
+const fresh = () => ({v:3,done:{},cards:{},sound:true});
+let S = (() => {
+  try{ const s=JSON.parse(localStorage.getItem(KEY)); if(s&&s.v===3) return s; }catch(e){}
+  const f=fresh();
+  try{ const o=JSON.parse(localStorage.getItem('power-the-town-v2')); if(o){ for(const k of ['c1.demo','c1.lab','c1.p1']) if(o.done[k]) f.done[k]=true; f.cards=o.cards||{}; f.sound=o.sound!==false; } }catch(e){}
+  return f;
+})();
 const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} };
 const FLAT = []; CHAPTERS.forEach((ch,ci)=>ch.stages.forEach((st,si)=>FLAT.push({ch,ci,st,si,key:ch.id+'.'+st.id})));
 let L = null, quiz = null;
@@ -572,32 +650,33 @@ function loadCircuit(src){
 function startStage(i, keepSlide){
   const f=FLAT[i], st=f.st;
   L={ i, f, st, kind:st.kind, step:0, task:0, slide:keepSlide||0, tier:0, fin:false, shown:false, ang:{}, tp:{}, events:{}, hold:0, wrong:0, answered:false };
-  if(st.kind==='demo'){ loadCircuit(st.slides[L.slide]); S.pipes=!!st.slides[L.slide].pipes; }
-  else if(st.kind==='build') loadCircuit({parts:[],wires:[]});
-  else loadCircuit(st);
+  if(st.kind==='demo'){ loadCircuit(st.slides[L.slide]); L.water=!!st.slides[L.slide].water; L.hmax=st.slides[L.slide].hmax; }
+  else if(st.kind==='build') loadCircuit(st.start||{parts:[],wires:[]});
+  else { loadCircuit(st); L.water=!!st.water; L.hmax=st.hmax; if(st.kind==='lab') enterTask(); }
   L.locked = st.kind!=='build';
   $('#gFx').innerHTML=''; hideSheet(); setFb('');
-  setView(S.pipes,true); renderTop(); renderTray(); renderSliders(); resolve(); draw(); show('play');
+  renderTop(); renderTray(); renderSliders(); resolve(); draw(); show('play');
 }
 function resolve(){ L.sol=E.solve(L.c); }
 function changed(){ L.lastEvent=null; resolve(); draw(); }
 function renderTop(){
   const st=L.st, k=L.kind, chn=`Chapter ${L.f.ci+1}`;
   $('#top').classList.toggle('fin',L.fin);
-  $('#topT').textContent = k==='demo'?`${chn} demo: ${L.f.ch.title}` : k==='lab'?`${chn} lab` : `${chn}, puzzle ${st.name}`;
-  let sub='', text='', askOn=false, unit='';
+  $('#topT').textContent = k==='demo'?`${chn} demo: ${L.f.ch.title}` : st.water?`${chn} waterworks` : k==='lab'?`${chn} lab` : `${chn}, puzzle ${st.name}`;
+  let sub='', text='', askOn=false, unit='', exOn=false;
   if(k==='demo'){ text=st.slides[L.slide].cap; }
-  if(k==='lab'){ const t=st.tasks[L.task]; sub=`Task ${L.task+1} of ${st.tasks.length}`; text=t.text; askOn=!!t.read&&!L.answered; unit=t.unit; }
+  if(k==='lab'){ const t=st.tasks[L.task]; sub=`Task ${L.task+1} of ${st.tasks.length}`; text=t.text; askOn=(!!t.read||t.value!==undefined)&&!L.answered; unit=t.unit; exOn=!!t.explain&&!L.answered; }
   if(k==='build'){ text=st.goal; if(st.steps) sub=`Part ${Math.min(L.step+1,st.steps.length)} of ${st.steps.length}`; if(st.ask){ askOn=!L.fin; unit=st.ask.unit; } }
   if(k==='calc'){ text=st.goal; askOn=!L.fin; unit=st.unit; }
   $('#topS').textContent=sub; $('#topS').hidden=!sub; $('#topP').textContent=text;
+  $('#ex').hidden=!exOn; if(exOn&&!L.keepIn) $('#exIn').value='';
   $('#ask').hidden=!askOn; $('#askU').textContent=unit; if(askOn&&!L.keepIn) $('#askIn').value=''; L.keepIn=false;
   $('#demoNav').hidden = k!=='demo';
   if(k==='demo'){ $('#dCount').textContent=`${L.slide+1} / ${st.slides.length}`; $('#dPrev').disabled=L.slide===0; $('#dNext').textContent = L.slide===st.slides.length-1 ? 'Done' : 'Next ›'; $('#dNext').hidden=L.fin; }
   $('#taskNext').hidden = !(k==='lab'&&L.answered&&!L.fin); $('#taskNext').textContent = k==='lab'&&L.task>=st.tasks.length-1 ? 'Finish the lab' : 'Next task';
   $('#doneBox').hidden=!L.fin;
-  if(L.fin){ const nx=FLAT[L.i+1]; $('#doneP').innerHTML='<b>Done.</b> '; $('#doneP').append(st.learned||''); $('#nextGo').textContent = nx ? (nx.ci!==L.f.ci ? `Next: Chapter ${nx.ci+1}` : nx.st.kind==='lab'?'Next: the lab':'Next: puzzle '+nx.st.name) : 'Back to home'; }
-  $('#hint').hidden = k==='demo'||k==='lab'; $('#reset').hidden = k==='demo';
+  if(L.fin){ const nx=FLAT[L.i+1]; $('#doneP').innerHTML='<b>Done.</b> '; $('#doneP').append(st.learned||''); $('#nextGo').textContent = nx ? (nx.ci!==L.f.ci ? `Next: Chapter ${nx.ci+1}` : nx.st.water?'Next: the waterworks':nx.st.kind==='lab'?'Next: the lab':'Next: puzzle '+nx.st.name) : 'Back to home'; }
+  $('#hint').hidden = k==='demo'||k==='lab'; $('#reset').hidden = k==='demo'; $('#why').hidden = !!L.water;
 }
 function setFb(text, ok){ const f=$('#fb'); f.hidden=!text; f.textContent=text||''; f.className=ok===true?'ok':ok===false?'no':''; }
 
@@ -701,7 +780,8 @@ function drawMeter(p,pv){
 let spins=[];
 function draw(){
   layout();
-  const c=L.c, pv=S.pipes;
+  if(L.water){ drawWater(); return; }
+  const c=L.c, pv=false;
   let hs='';
   if(L.placing){ const used=new Set(c.parts.map(p=>p.s)); for(let s=0;s<12;s++) if(!used.has(s)){ const {x,y}=spotXY(s); hs+=`<rect class="spot" data-s="${s}" x="${x-46}" y="${y-38}" width="92" height="74" rx="10"/>`; } }
   $('#gSpots').innerHTML=hs;
@@ -732,6 +812,7 @@ function draw(){
   renderTray(); animate(0);
 }
 function animate(dt){
+  if(L.water){ animateWater(dt); return; }
   for(const w of L.c.wires){
     const I=w.i||0, on=Math.abs(I)>.004;
     w.ph=(w.ph||0)+Math.min(520,Math.abs(I)*110)*dt*(I>0?1:-1);
@@ -746,10 +827,80 @@ function animate(dt){
   for(const s of spins){ L.ang[s.id]=((L.ang[s.id]||0)+Math.max(-1500,Math.min(1500,s.rate))*dt)%360; s.el.setAttribute('transform',`translate(${s.cx} ${s.cy}) rotate(${L.ang[s.id].toFixed(1)})`); }
 }
 
+
+/* ---------- waterworks: side view of the loop, height = voltage ---------- */
+function loopSeq(c){
+  const start=c.parts.find(p=>p.type==='battery').id+'.a', flip=t=>t.slice(0,-1)+(t.endsWith('a')?'b':'a'), seq=[]; let cur=start;
+  for(let k=0;k<16;k++){ const out=flip(cur); seq.push({p:c.parts.find(x=>x.id===cur.slice(0,-2)),in:cur,out}); const w=c.wires.find(w=>w.a===out||w.b===out); if(!w) break; const nx=w.a===out?w.b:w.a; if(nx===start) break; cur=nx; }
+  return seq;
+}
+function drawWater(){
+  const c=L.c, seq=loopSeq(c), n=seq.length, x0=54, x1=334, sw=(x1-x0)/n, base=292, hmax=L.hmax||6.5, sc=212/hmax, Y=h=>base-h*sc;
+  const tV=t=>{ const p=c.parts.find(x=>x.id===t.slice(0,-2)); return t.endsWith('a')?p.va:p.vb; }, V0=tV(seq[0].in), H=t=>tV(t)-V0;
+  const pts=[[x0,Y(0)]]; let over='', icons='', lab='', lastH=null;
+  const hl=(x,h)=>{ if(lastH!==null&&Math.abs(h-lastH)<.05) return; lastH=h; lab+=`<text class="sp" style="font-size:11.5px" x="${x}" y="${Y(h)-11}">${L.maskH&&Math.abs(h)>.05?'?':h.toFixed(1)} m</text>`; };
+  seq.forEach((e,i)=>{
+    const p=e.p, xin=x0+i*sw, xm=xin+sw/2, xo=xin+sw, hi=H(e.in), ho=H(e.out), yi=Y(hi), yo=Y(ho), ym=(yi+yo)/2, fwd=e.in.endsWith('a')?1:-1;
+    hl(xin+(i?0:8), hi);
+    let n1='', n2='';
+    if(p.type==='bulb'||p.type==='resistor'){
+      const xa=xm-sw*.2, xb=xm+sw*.2, w=Math.max(2.5,11-2.3*Math.log2(Math.max(3,p.R)/3));
+      pts.push([xa,yi],[xb,yo],[xo,yo]);
+      over+=`<path d="M${xa} ${yi}L${xb} ${yo}" stroke="#77838f" stroke-width="14" stroke-linecap="round"/><path d="M${xa} ${yi}L${xb} ${yo}" stroke="${p.burned?'#2c3640':'#3d9be9'}" stroke-width="${w}"/>`;
+      icons+=`<circle cx="${xm}" cy="${ym}" r="12" fill="#1b242d" stroke="${p.burned?'#ff7b6e':'#bfe3ff'}" stroke-width="2"/>`+spin(p.id,xm,ym,p.burned?0:p.i*600*fwd,'<path d="M0 -9V9M-7.8 -4.5L7.8 4.5M-7.8 4.5L7.8 -4.5" stroke="#bfe3ff" stroke-width="2.5" stroke-linecap="round"/>');
+      n1=p.burned?'JAMMED':'WHEEL'; n2=p.burned?'TAP':L.f.ci<2?'':(p.mystery?'?':p.R)+' Ω';
+    } else {
+      pts.push([xm,yi],[xm,yo],[xo,yo]);
+      if(p.type==='battery'){
+        icons+=`<circle cx="${xm}" cy="${ym}" r="13" fill="#35414c" stroke="#9aa6b2" stroke-width="2"/>`+spin(p.id,xm,ym,p.i*320,'<path d="M0 -9Q5 -4 0 0Q-5 4 0 9M-9 0Q-4 -5 0 0Q4 5 9 0" fill="none" stroke="#e6edf3" stroke-width="2.6" stroke-linecap="round"/>');
+        n1='PUMP'; n2=(fwd>0?'+':'−')+(+(p.n*1.5).toFixed(1))+' m';
+      }
+      if(p.type==='switch'){
+        icons+= p.closed ? `<rect x="${xm-3.5}" y="${yi-34}" width="7" height="22" rx="2" fill="#5fd08a"/>` : `<rect x="${xm-4}" y="${Math.min(yi,yo)-11}" width="8" height="${Math.abs(yo-yi)+22}" rx="2" fill="#ff7b6e"/>`;
+        n1='GATE'; n2=p.closed?'OPEN':'SHUT · TAP';
+      }
+      if(p.type==='ammeter'){
+        icons+=`<circle cx="${xm}" cy="${yi}" r="10" fill="#1b242d" stroke="#e9a15f" stroke-width="2"/>`+spin(p.id,xm,yi,p.i*600*fwd,'<path d="M0 -7V7M-7 0H7" stroke="#ffe08a" stroke-width="2.2" stroke-linecap="round"/>');
+        icons+=`<text class="rd" style="font-size:14px" x="${xm}" y="${yi+28}">${p.masked?'?':Math.abs(p.i).toFixed(2)} L/s</text>`;
+        n1='COUNTER';
+      }
+    }
+    lab+=`<text class="lbl" x="${xm}" y="${base+17}">${n1}</text><text class="lbl" style="fill:#dfe6ec" x="${xm}" y="${base+30}">${n2}</text>`;
+    icons+=`<rect class="tap" data-p="${p.id}" x="${xin}" y="${Math.min(yi,yo)-36}" width="${sw}" height="${Math.abs(yo-yi)+72}" fill="transparent"/>`;
+  });
+  const end=pts[pts.length-1]; hl(x1-8, H(seq[n-1].out));
+  const full=pts.concat([[x1+12,end[1]],[x1+12,base+46],[x0-16,base+46],[x0-16,Y(0)],[x0,Y(0)]]);
+  const d='M'+full.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join('L');
+  let ruler=''; const stp=hmax>8?3:hmax>3?1.5:.5;
+  for(let v=0;v<=hmax+.01;v+=stp) ruler+=`<path d="M22 ${Y(v)}H30" stroke="#56626e"/><text class="lbl" x="11" y="${Y(v)+4}">${+v.toFixed(1)}</text><path d="M${x0} ${Y(v)}H${x1}" stroke="rgba(255,255,255,.05)"/>`;
+  const terrain=`<path d="M${x0} ${base}L${pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join('L')}L${x1} ${base}Z" fill="rgba(61,155,233,.13)"/>`;
+  $('#gSpots').innerHTML=ruler+terrain; $('#gTerms').innerHTML='';
+  $('#gWires').innerHTML=`<path d="${d}" class="pipe" stroke-linejoin="round"/><path d="${d}" class="waterIn" stroke="#3d9be9" stroke-linejoin="round"/>`+over;
+  $('#gParts').innerHTML=icons+lab;
+  const cum=[0]; for(let k=1;k<full.length;k++) cum.push(cum[k-1]+Math.hypot(full[k][0]-full[k-1][0],full[k][1]-full[k-1][1]));
+  const len=cum[cum.length-1], nd=Math.floor(len/20);
+  $('#gDots').innerHTML=Array(nd).fill('<circle r="2.8" fill="#f1f9ff"/>').join('');
+  L.wp={full,cum,len,dots:[...$('#gDots').children],I:seq[0].p.i};
+  spins=[...document.querySelectorAll('[data-spin]')].map(el=>({el,id:el.dataset.spin,cx:+el.dataset.cx,cy:+el.dataset.cy,rate:+el.dataset.rate}));
+  renderTray(); animateWater(0);
+}
+function animateWater(dt){
+  const w=L.wp, I=w.I||0, on=Math.abs(I)>.004;
+  L.wph=(L.wph||0)+Math.min(520,Math.abs(I)*110)*dt*(I>0?1:-1);
+  const sp=w.len/w.dots.length;
+  w.dots.forEach((dEl,k)=>{
+    if(!on){ dEl.setAttribute('visibility','hidden'); return; }
+    const s=(((k*sp+L.wph)%w.len)+w.len)%w.len; let g=0; while(g<w.cum.length-2&&w.cum[g+1]<s) g++;
+    const t=(s-w.cum[g])/((w.cum[g+1]-w.cum[g])||1), a=w.full[g], b=w.full[g+1];
+    dEl.setAttribute('visibility','visible'); dEl.setAttribute('cx',(a[0]+(b[0]-a[0])*t).toFixed(1)); dEl.setAttribute('cy',(a[1]+(b[1]-a[1])*t).toFixed(1));
+  });
+  for(const s of spins){ L.ang[s.id]=((L.ang[s.id]||0)+Math.max(-1500,Math.min(1500,s.rate))*dt)%360; s.el.setAttribute('transform',`translate(${s.cx} ${s.cy}) rotate(${L.ang[s.id].toFixed(1)})`); }
+}
+
 /* ---------- tray and sliders ---------- */
 const placedOf = ti => L.c.parts.filter(p=>p.ti===ti).length;
 function renderTray(){
-  const el=$('#tray'); el.hidden = L.kind!=='build'||L.shown; if(el.hidden) return;
+  const el=$('#tray'); el.hidden = L.kind!=='build'||L.shown||(!L.st.tray.length&&!L.selP); if(el.hidden) return;
   el.innerHTML=L.st.tray.map((t,ti)=>{ const left=t.count-placedOf(ti); return `<button class="tp" data-ti="${ti}" aria-pressed="${L.placing===ti}" ${left?'':'disabled'}>${t.label}${t.count>1?` <i>×${left}</i>`:''}</button>`; }).join('') + (L.selP ? '<button class="tp rmv" id="rm">Remove selected part</button>' : '');
 }
 $('#tray').addEventListener('click',e=>{ if(e.target.closest('#rm')){ removeSel(); return; } const b=e.target.closest('[data-ti]'); if(!b) return; const ti=+b.dataset.ti; L.placing = L.placing===ti ? null : ti; L.selP=null; L.sel=null; Snd.click(); renderTray(); draw(); if(L.placing!==null) toast('Tap a dashed spot'); });
@@ -759,7 +910,7 @@ function placeAt(s){
 }
 function removeSel(){ const id=L.selP; L.c.parts=L.c.parts.filter(p=>p.id!==id); L.c.wires=L.c.wires.filter(w=>!w.a.startsWith(id+'.')&&!w.b.startsWith(id+'.')); L.selP=null; Snd.cut(); changed(); }
 function renderSliders(){
-  const el=$('#sliders'), sl=L.st.sliders; el.hidden=!sl; if(!sl) return;
+  const el=$('#sliders'); let sl=L.st.sliders; if(L.noSl) sl=null; el.hidden=!sl; if(!sl) return;
   el.innerHTML=sl.map((s,k)=>{ const p=L.c.parts.find(x=>x.id===s.part); return `<label class="sl"><span>${s.label}</span><input type="range" id="sl${k}" data-k="${k}" min="${s.min}" max="${s.max}" step="${s.step}" value="${p[s.key]}"><b id="slv${k}">${s.fmt(p[s.key])}</b></label>`; }).join('');
 }
 $('#sliders').addEventListener('input',e=>{ const s=L.st.sliders[+e.target.dataset.k], p=L.c.parts.find(x=>x.id===s.part); p[s.key]=+e.target.value; $('#slv'+e.target.dataset.k).textContent=s.fmt(p[s.key]); changed(); });
@@ -773,7 +924,7 @@ function shake(){ const b=$('#boardWrap'); b.classList.remove('shake'); void b.o
 function onEvents(evs){
   for(const ev of evs){
     L.events[ev.type]=true; L.lastEvent=ev; ev.viaAm=L.c.parts.some(p=>p.type==='ammeter'&&Math.abs(p.i)>E.WIRE_MAX);
-    if(ev.type==='wireMelted'){ const m=bez(ev.ref.g,.5); fx(`<path class="char" d="${ev.ref.g.d}"/>`+sparks(m.x,m.y,18)); shake(); Snd.zap(); toast(S.pipes?'Pipe burst!':'Wire melted!'); }
+    if(ev.type==='wireMelted'){ const m=bez(ev.ref.g,.5); fx(`<path class="char" d="${ev.ref.g.d}"/>`+sparks(m.x,m.y,18)); shake(); Snd.zap(); toast('Wire melted!'); }
     if(ev.type==='bulbBurned'){ fx(sparks(ev.ref.x,ev.ref.y-23,14)); shake(); Snd.pop(); toast('Bulb burned out!'); }
     if(ev.type==='resistorBurned'){ let h=''; for(let k=0;k<7;k++) h+=`<circle class="smoke" cx="${ev.ref.x+(Math.random()*16-8)}" cy="${ev.ref.y-6}" r="${3+Math.random()*3}" style="--dx:${(Math.random()*30-15).toFixed(0)}px;animation-delay:${k*.07}s"/>`; fx(h); Snd.sizzle(); toast('Resistor cooked!'); }
   }
@@ -828,14 +979,6 @@ $('#hint').onclick=()=>{ if(L.tier>=3&&L.kind==='build'){ sheet('Here is one way
 $('#sheetMore').onclick=showHint;
 $('#reset').onclick=()=>startStage(L.i);
 $('#back').onclick=renderHome;
-
-/* ---------- view toggle: Pipes shows the pressure at every point ---------- */
-function setView(w, quiet){
-  S.pipes=w; save();
-  $('#vWire').setAttribute('aria-pressed',!w); $('#vPipe').setAttribute('aria-pressed',w);
-  if(!quiet){ draw(); if(w&&!S.seenPipes){ S.seenPipes=true; save(); sheet('Pipes view','The thin tube at each point shows the pressure there, in volts. The pump (cell) raises it. Narrow sections (bulbs, resistors) are where it drops. Wide pipes (wires) barely drop it at all.',false); } }
-}
-$('#vWire').onclick=()=>{ Snd.click(); setView(false); }; $('#vPipe').onclick=()=>{ Snd.click(); setView(true); };
 
 /* ---------- touch: tap two dots, or drag from dot to dot ---------- */
 const board=$('#board'), rubber=$('#rubber');
@@ -903,23 +1046,33 @@ function tickGoal(dt){
   if(st.steps && L.step<st.steps.length-1){ L.step++; Snd.step(); toast('Good. Now the next part.'); renderTop(); return; }
   finish();
 }
+function enterTask(){
+  const t=L.st.tasks[L.task];
+  if(t.load){ const w=L.water; loadCircuit(t.load); L.water=w; L.noSl=true; renderSliders(); }
+  if(t.hmax) L.hmax=t.hmax;
+  L.maskH=!!t.mask;
+}
 function nextTask(){
   if(L.task>=L.st.tasks.length-1){ finish(); return; }
-  L.task++; L.answered=false; L.events={}; setFb(''); Snd.step(); renderTop();
+  L.task++; L.answered=false; L.events={}; setFb(''); Snd.step(); enterTask(); renderTop(); resolve(); draw();
 }
+$('#exGo').onclick=()=>{
+  if($('#exIn').value.trim().length<8){ L.keepIn=true; setFb('Have a proper go at it first. A sentence or two.',false); return; }
+  $('#exIn').blur(); L.answered=true; Snd.step(); renderTop(); setFb('Model answer: '+L.st.tasks[L.task].explain);
+};
 $('#taskNext').onclick=nextTask;
 $('#askGo').onclick=()=>{
   const x=num($('#askIn').value); if(isNaN(x)){ setFb('Type a number first.',false); return; }
   const st=L.st; $('#askIn').blur();
   if(L.kind==='lab'){
     const t=st.tasks[L.task];
-    for(const id in (t.set||{})){ const p=L.c.parts.find(q=>q.id===id); Object.assign(p,t.set[id]); if(p.burned&&t.set[id].n) p.burned=false; }
+    for(const id in (t.set||{})){ const p=L.c.parts.find(q=>q.id===id); if(p) Object.assign(p,t.set[id]); }
     L.c.parts.forEach(p=>{ if(p.burned) p.burned=false; });
     (t.unmask||[]).forEach(id=>L.c.parts.find(q=>q.id===id).masked=false);
-    renderSliders(); changed();
-    const real=E.read(L.c,t.read), ok=Math.abs(x-real)<=t.tol;
+    L.maskH=false; renderSliders(); changed();
+    const real=t.value!==undefined ? t.value : E.read(L.c,t.read)*(t.mul||1), ok=Math.abs(x-real)<=t.tol;
     ok?Snd.good():Snd.bad(); L.answered=true; renderTop();
-    setFb(`${ok?'Right.':'Not quite.'} You said ${x} ${t.unit}. The meter shows ${real.toFixed(2)} ${t.unit}. ${t.why}`,ok); return;
+    setFb(`${ok?'Right.':'Not quite.'} You said ${x} ${t.unit}. ${t.value!==undefined?'The answer is':L.water?'It comes to':'The meter shows'} ${+real.toFixed(real>=10?1:2)} ${t.unit}. ${t.why}`,ok); return;
   }
   const real = L.kind==='calc' ? E.read(L.c,st.read) : st.ask.value, tol = L.kind==='calc' ? st.tol : st.ask.tol, unit = L.kind==='calc' ? st.unit : st.ask.unit;
   if(Math.abs(x-real)<=tol){ if(L.kind==='calc') unmaskAll(); setFb(`Right: ${x} ${unit}.`,true); finish(); }
@@ -928,7 +1081,7 @@ $('#askGo').onclick=()=>{
 $('#askIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#askGo').click(); });
 function gotoSlide(n){
   const st=L.st; if(n>=st.slides.length){ finish(); return; }
-  L.slide=n; const sl=st.slides[n]; loadCircuit(sl); setView(!!sl.pipes,true);
+  L.slide=n; const sl=st.slides[n]; loadCircuit(sl); L.water=!!sl.water; L.hmax=sl.hmax;
   Snd.click(); renderTop(); resolve(); draw();
 }
 $('#dNext').onclick=()=>gotoSlide(L.slide+1); $('#dPrev').onclick=()=>gotoSlide(L.slide-1);
